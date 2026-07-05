@@ -21,8 +21,8 @@
 // ---------- แก้ค่าตรงนี้ ----------
 #define WIFI_SSID     "ชื่อ_WiFi"
 #define WIFI_PASS     "รหัส_WiFi"
-#define SUPABASE_URL  "https://ใส่_PROJECT_REF.supabase.co"   // จาก Project Settings > API
-#define SUPABASE_ANON "ใส่_ANON_PUBLIC_KEY"                    // (public key, ยาวขึ้นต้น eyJ...)
+#define SUPABASE_URL  "https://jjbrgolulggksxnuicgg.supabase.co"   // จาก Project Settings > API
+#define SUPABASE_ANON "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqYnJnb2x1bGdna3N4bnVpY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjc0ODAsImV4cCI6MjA5ODg0MzQ4MH0.0coKRuYMMOwLq9yJFsOff99ya9RBwyLBzqxN2YU1JWg"                    // (public key, ยาวขึ้นต้น eyJ...)
 #define DEVICE_ID     "buoy-01"
 // ----------------------------------
 

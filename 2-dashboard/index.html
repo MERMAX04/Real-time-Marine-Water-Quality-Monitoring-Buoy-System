@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ทุ่นตรวจคุณภาพน้ำทะเล | AI Realtime Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌊%3C/text%3E%3C/svg%3E">
-<!-- Firebase SDK (โหลดจาก CDN — ต้องต่อเน็ต ใช้เฉพาะโหมด firebase) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <!-- Supabase SDK (โหลดจาก CDN — ใช้เฉพาะโหมด supabase) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Font: Bai Jamjuree (ไทย+ตัวเลข) จาก Google Fonts -->
@@ -327,7 +324,7 @@
   </div>
 
   <footer>
-    โปรเจคจบ · ข้อมูลตอนนี้เป็น <b>Mock Data</b> — เปลี่ยนเป็น Supabase/Firebase/Server ได้ที่ <code>CONFIG.mode</code><br>
+    โปรเจคจบ · แหล่งข้อมูล: <b>Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
     AI Engine ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
 </div>
@@ -335,23 +332,16 @@
 <script>
 /* =========================================================================
    CONFIG — สลับแหล่งข้อมูลตรงนี้จุดเดียว (แก้ค่า mode)
-   'mock' = ค่าปลอมเดโม | 'supabase' = แผนหลัก | 'firebase'/'server' = ทางเลือก
+   'supabase' = แผนหลัก (realtime) | 'server' = ทางเลือก | 'mock' = ค่าปลอมเดโม
    ดูวิธีสลับละเอียดที่ SWITCHING-GUIDE.md
    ========================================================================= */
 const CONFIG = {
-  mode: 'mock',
+  mode: 'supabase',
   device: 'buoy-01',
   // ---- โหมด 'supabase' (แผนหลัก) : เอาค่าจาก Supabase > Project Settings > API ----
   supabase: {
-    url:     "https://ใส่_PROJECT_REF.supabase.co",
-    anonKey: "ใส่_ANON_PUBLIC_KEY",   // public key (ขึ้นต้น eyJ...)
-  },
-  // ---- โหมด 'firebase' ----
-  firebase: {
-    apiKey:      "ใส่_API_KEY",
-    authDomain:  "ใส่_PROJECT_ID.firebaseapp.com",
-    databaseURL: "https://ใส่_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId:   "ใส่_PROJECT_ID",
+    url:     "https://jjbrgolulggksxnuicgg.supabase.co",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqYnJnb2x1bGdna3N4bnVpY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjc0ODAsImV4cCI6MjA5ODg0MzQ4MH0.0coKRuYMMOwLq9yJFsOff99ya9RBwyLBzqxN2YU1JWg",
   },
   apiBase: 'https://server-อาจารย์.ac.th/buoy/api',
   staleSeconds: 900,   // ถ้าไม่มีข้อมูลใหม่เกินเท่านี้ = "ข้อมูลค้าง" (mock อัปเดตทุก 2 วิ จึงออนไลน์เสมอ)
@@ -542,19 +532,12 @@ function buildInsight(wqiObj){
 }
 
 /* =========================================================================
-   แหล่งข้อมูล (mock / firebase / server)
+   แหล่งข้อมูล (supabase / server / mock)
    ========================================================================= */
-let fbLatest = {}, sbLatest = {};
+let sbLatest = {};
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
 function mapRow(r){ return {do:r.do_val, sal:r.sal, turb:r.turb, chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }
 function initSource(){
-  if (CONFIG.mode === 'firebase'){
-    firebase.initializeApp(CONFIG.firebase);
-    firebase.database().ref(`${CONFIG.device}/latest`).on('value', s=>{
-      const v=s.val(); if(v){ fbLatest=v; lastDataAt=Date.now(); }   // ได้ข้อมูลใหม่ = สด
-      document.getElementById('loc').textContent = CONFIG.device+' (Firebase)';
-    }, e=>console.warn('Firebase error:',e));
-  }
   if (CONFIG.mode === 'supabase'){
     const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
     document.getElementById('loc').textContent = CONFIG.device+' (Supabase)';
@@ -575,7 +558,6 @@ const mockState = {};
 PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0, frozen:0});
 async function fetchData(){
   if (CONFIG.mode==='supabase'){ const o={}; PARAMS.forEach(p=>{if(sbLatest[p.key]!=null)o[p.key]=Number(sbLatest[p.key])}); return o; }
-  if (CONFIG.mode==='firebase'){ const o={}; PARAMS.forEach(p=>{if(fbLatest[p.key]!=null)o[p.key]=Number(fbLatest[p.key])}); return o; }
   if (CONFIG.mode==='server'){
     try{ const r=await fetch(`${CONFIG.apiBase}/latest.php?device=${CONFIG.device}`); const j=await r.json();
       if(j && j.ts && j.ts!==lastTs){ lastTs=j.ts; lastDataAt=Date.now(); }   // ts ใหม่ = ข้อมูลสด
