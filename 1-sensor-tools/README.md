@@ -10,9 +10,16 @@ py -m pip install pyserial
 ## ไฟล์
 | ไฟล์ | ใช้ตอนไหน |
 |------|-----------|
-| `rs485_scan.py` | ยังไม่รู้ค่า baud/address ที่ถูก — ไล่สแกนหาอัตโนมัติ |
-| `rs485_raw.py`  | รู้ค่าแล้ว/มีคู่มือ — ส่ง hex command เฉพาะ |
-| `note-troubleshooting.txt` | สรุปวิธีวินิจฉัยฉบับเต็ม |
+| **`read_sensor.py`** ⭐ | **ตัวหลัก** — อ่านค่าจริงทุกตัว + ถอด float ให้เลย (ตั้งค่าตามคู่มือแล้ว) |
+| **`SENSOR-PROTOCOL.md`** | สรุป protocol ครบจากคู่มือ (baud/register/wiring/float) |
+| `rs485_scan.py` | เผื่อ address/baud เพี้ยน — ไล่สแกนหาอัตโนมัติ |
+| `rs485_raw.py`  | ส่ง hex command เฉพาะเจาะจงเอง |
+| `note-troubleshooting.txt` | สรุปวิธีวินิจฉัยฉบับแรก |
+
+## ⚡ ค่าที่ได้จากคู่มือ (ดูละเอียดใน SENSOR-PROTOCOL.md)
+- Modbus RTU **9600 8N1**, address **0x01**
+- อ่านทุกค่า: `01 03 26 00 00 16 CF 4C`
+- **ต่อสาย:** 🔴แดง=VCC→ไฟ 12–24V·≥1A  ⚫ดำ=GND→ไฟ−**และ GND adapter**  🟢เขียว=A  ⚪ขาว=B
 
 ## วิธีใช้
 ```

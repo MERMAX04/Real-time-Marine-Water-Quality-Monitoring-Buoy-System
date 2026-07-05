@@ -15,3 +15,8 @@ __pycache__/
 
 # ===== เครื่องมือชั่วคราวของ Python =====
 1-sensor-tools/dash_check.js
+
+# ===== คู่มือ PDF (ไฟล์ใหญ่รวม ~60MB) — ไม่ commit เพื่อให้ repo เบา =====
+# ถ้าอยากเก็บคู่มือใน repo ด้วย ให้ลบ 2 บรรทัดนี้ออก
+Guide files/*.pdf
+Guide files/_sensor_text.txt
