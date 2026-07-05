@@ -38,8 +38,23 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 3. เปิด `2-dashboard/index.html` → **ค่าต้องขึ้นทันที** และถ้า insert แถวใหม่ Dashboard เปลี่ยน**สดๆ** = realtime ทำงาน ✅
 
 ## ขั้นที่ 5 — ต่อ ESP32
-- ใช้ `esp32-supabase-test.ino` (ส่งค่าปลอมทุก 5 วิ) — แก้ WiFi + URL + anon key แล้วอัปโหลด
-- Serial Monitor ควรได้ **HTTP 201** = insert สำเร็จ / ถ้า **401/403** = RLS หรือ anon key ผิด (เช็ค schema.sql)
+มี 2 เวอร์ชัน:
+| ไฟล์ | ใช้ตอนไหน | เน็ต |
+|------|-----------|------|
+| `esp32-supabase-test.ino` | **ทดสอบบนโต๊ะ** (ก่อนได้โมดูล 4G) | WiFi |
+| `esp32-supabase-4g.ino` | **ของจริงบนทุ่น** | โมดูล 4G (LilyGO T-A7670G) |
+
+**เวอร์ชัน 4G (`esp32-supabase-4g.ino`):**
+- ฮาร์ดแวร์แนะนำ: **LilyGO T-A7670G** (ESP32 + 4G LTE Cat-1 + GPS + จัดการไฟ ในบอร์ดเดียว — เสถียรสุด)
+- ติดตั้งไลบรารี **TinyGSM** (เวอร์ชันล่าสุดจาก GitHub รองรับ A7670)
+- แก้: `APN` ของค่ายซิม (AIS/True=`internet`), host + anon key ใส่ให้แล้ว
+- Supabase เป็น HTTPS → ใช้ `TinyGsmClientSecure` + `setInsecure()` (A7670 รองรับ SSL)
+- 🎯 บอนัส: A7670G มี **GPS** ในตัว — เปิดใช้เอาพิกัดจริงมาโชว์ได้ (ดูคอมเมนต์ท้ายไฟล์)
+
+**ผลที่ควรได้ (ทั้ง 2 เวอร์ชัน):** Serial Monitor ขึ้น **HTTP 201** = insert สำเร็จ
+- **401/403** = RLS หรือ anon key ผิด (เช็ค schema.sql รันครบ)
+- **400** = คอลัมน์ผิด (JSON field ไม่ตรงตาราง)
+- **ต่อ https ไม่ได้** = เน็ต 4G/เสาอากาศ/APN
 
 ---
 
