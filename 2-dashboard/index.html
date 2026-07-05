@@ -67,6 +67,7 @@
   /* ===== ฝูงปลาว่ายในน้ำ (อยู่เหนือ scrim ให้เห็นชัด แต่ใต้ content) ===== */
   .school{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .fish{position:absolute;left:0;will-change:transform;filter:drop-shadow(0 0 10px rgba(120,200,255,.45))}
+  .fish svg{display:block;width:1.7em;height:1em}
   .fish i{display:block;font-style:normal;animation:finbob 3s ease-in-out infinite}
   @keyframes finbob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
   @keyframes swimL{from{transform:translateX(112vw)}to{transform:translateX(-16vw)}}
@@ -206,12 +207,23 @@
   </path></svg>
 </div>
 <div class="scrim"></div>
+<!-- รูปปลา SVG (นิยามครั้งเดียว ใช้ซ้ำ หันซ้าย) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffbf5a"/><stop offset="1" stop-color="#f0851c"/></linearGradient></defs>
+  <symbol id="fish" viewBox="0 0 72 40">
+    <path d="M54,20 L71,9 L66,20 L71,31 Z" fill="#e8791f"/>
+    <path d="M8,20 C10,9 30,6 44,11 C52,14 58,16.5 56,20 C58,23.5 52,26 44,29 C30,34 10,31 8,20 Z" fill="url(#fg)"/>
+    <path d="M30,11.5 C34,7 40,7 43,10.5" stroke="#ffe0b0" stroke-width="1.6" fill="none" opacity=".8"/>
+    <circle cx="16" cy="17.5" r="2.4" fill="#241100"/>
+  </symbol>
+</svg>
 <div class="school">
-  <span class="fish f1"><i>🐠</i></span><span class="fish f2"><i>🐟</i></span>
-  <span class="fish f3"><i>🐠</i></span><span class="fish f4"><i>🐡</i></span>
-  <span class="fish f5"><i>🐟</i></span><span class="fish f6"><i>🐠</i></span>
-  <span class="fish f7"><i>🐡</i></span><span class="fish f8"><i>🐠</i></span>
-  <span class="fish f9"><i>🐟</i></span><span class="fish f10"><i>🐠</i></span>
+  <span class="fish f1"><i><svg><use href="#fish"/></svg></i></span><span class="fish f2"><i><svg><use href="#fish"/></svg></i></span>
+  <span class="fish f3"><i><svg><use href="#fish"/></svg></i></span><span class="fish f4"><i><svg><use href="#fish"/></svg></i></span>
+  <span class="fish f5"><i><svg><use href="#fish"/></svg></i></span><span class="fish f6"><i><svg><use href="#fish"/></svg></i></span>
+  <span class="fish f7"><i><svg><use href="#fish"/></svg></i></span><span class="fish f8"><i><svg><use href="#fish"/></svg></i></span>
+  <span class="fish f9"><i><svg><use href="#fish"/></svg></i></span><span class="fish f10"><i><svg><use href="#fish"/></svg></i></span>
 </div>
 
 <div class="wrap">
