@@ -88,6 +88,14 @@
   .f10{top:93%;font-size:36px;opacity:.88;animation:swimR 44s linear infinite;animation-delay:-2s; --amp:13px;--wd:3.1s;--wdl:-1.2s}
   /* (เดิมเคยซ่อนปลา/หยุดอนิเมชันเมื่อระบบตั้ง Reduce Motion — เอาออกเพราะทำให้ปลาหายทั้งหมด) */
 
+  /* ===== ฉากพื้นทะเล (seabed) ขอบล่างจอ — ปะการัง/สาหร่าย/เปลือกหอย (อยู่หลัง content) ===== */
+  .seabed{position:fixed;left:0;bottom:0;width:100%;height:190px;z-index:0;pointer-events:none;overflow:hidden}
+  .seabed img{position:absolute;bottom:-6px;filter:drop-shadow(0 0 12px rgba(60,150,210,.35))}
+  .weed{transform-origin:bottom center;animation:sway var(--sd,5s) ease-in-out infinite;animation-delay:var(--sdl,0s)}
+  @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+  .d1{left:1%;width:110px}.d2{left:8%;width:132px}.d3{left:17%;width:88px}.d4{left:27%;width:66px}.d5{left:40%;width:104px}
+  .d6{left:53%;width:96px}.d7{left:64%;width:90px}.d8{left:78%;width:104px}.d9{left:88%;width:120px}.d10{left:95%;width:82px}
+
   .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
 
   /* ---------- Header ---------- */
@@ -209,6 +217,7 @@
     .panel{padding:16px}
     .gauge-num{font-size:34px}
     footer{font-size:11px}
+    .seabed{height:120px;opacity:.85}
   }
   #radar{width:100%;height:230px;display:block}
   .coords{display:flex;flex-direction:column;justify-content:center;gap:12px}
@@ -246,6 +255,19 @@
   <span class="fish f8"><i><img src="fish/fish8.png" alt=""></i></span>
   <span class="fish f9"><i><img src="fish/fish1.png" alt=""></i></span>
   <span class="fish f10"><i><img src="fish/fish5.png" alt=""></i></span>
+</div>
+<!-- ฉากพื้นทะเลขอบล่าง (ปะการัง/สาหร่ายโยกเบาๆ/เปลือกหอย) -->
+<div class="seabed">
+  <img class="weed d1" src="decor/weed1.png" style="--sd:5s" alt="">
+  <img class="d2" src="decor/coral3.png" alt="">
+  <img class="weed d3" src="decor/weed2.png" style="--sd:6.2s;--sdl:-1s" alt="">
+  <img class="d4" src="decor/shells.png" alt="">
+  <img class="d5" src="decor/coral1.png" alt="">
+  <img class="weed d6" src="decor/weed3.png" style="--sd:4.6s;--sdl:-2s" alt="">
+  <img class="d7" src="decor/coral2.png" alt="">
+  <img class="weed d8" src="decor/weed1.png" style="--sd:5.5s;--sdl:-1.5s" alt="">
+  <img class="d9" src="decor/coral4.png" alt="">
+  <img class="weed d10" src="decor/weed2.png" style="--sd:5.8s;--sdl:-3s" alt="">
 </div>
 
 <div class="wrap">
