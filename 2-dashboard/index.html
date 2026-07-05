@@ -14,7 +14,7 @@
 <style>
   :root{
     /* ---- พื้นผิว/ธีมทะเล ---- */
-    --bg:#03111f; --surface:#0b2740; --glass:rgba(18,58,94,.45); --glass-brd:rgba(120,200,255,.16);
+    --bg:#03111f; --surface:#0b2740; --glass:rgba(13,42,71,.68); --glass-brd:rgba(130,205,255,.22);
     --text:#eaf6ff; --muted:#8fb3cf; --accent:#31c8ff; --accent2:#5affd6;
     /* ---- สีสถานะ (ผ่านตัวตรวจ dataviz — ใช้คู่ไอคอน+ป้ายเสมอ) ---- */
     --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
@@ -28,14 +28,35 @@
     background:var(--bg);min-height:100vh;overflow-x:hidden;position:relative;
   }
   /* พื้นหลังไล่สีเคลื่อนไหว + แสงเรือง */
-  body::before{content:'';position:fixed;inset:0;z-index:-2;
+  body::before{content:'';position:fixed;inset:0;z-index:-4;
     background:
       radial-gradient(900px 600px at 15% 0%,rgba(49,200,255,.14),transparent 60%),
       radial-gradient(1000px 700px at 90% 20%,rgba(90,255,214,.10),transparent 60%),
       linear-gradient(160deg,#03111f 0%,#061d33 50%,#03111f 100%);
     background-size:200% 200%;animation:drift 18s ease-in-out infinite;}
   @keyframes drift{0%,100%{background-position:0% 0%}50%{background-position:100% 100%}}
-  .wrap{max-width:1240px;margin:0 auto;padding:24px}
+
+  /* ===== พื้นหลังทะเลเคลื่อนไหวพรีเมียม: aurora blobs ลอยช้าๆ ===== */
+  .ocean{position:fixed;inset:0;z-index:-3;overflow:hidden;pointer-events:none}
+  .blob{position:absolute;border-radius:50%;filter:blur(74px);opacity:.42;mix-blend-mode:screen;will-change:transform}
+  .blob.b1{width:46vw;height:46vw;left:-6vw;top:-10vh;background:radial-gradient(circle,#1f8fe0,transparent 62%);animation:float1 26s ease-in-out infinite}
+  .blob.b2{width:42vw;height:42vw;right:-8vw;top:4vh;background:radial-gradient(circle,#2fe6c2,transparent 62%);animation:float2 34s ease-in-out infinite}
+  .blob.b3{width:52vw;height:52vw;left:24vw;bottom:-18vh;background:radial-gradient(circle,#2a6df0,transparent 62%);animation:float3 40s ease-in-out infinite}
+  @keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(16vw,12vh) scale(1.18)}}
+  @keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-14vw,15vh) scale(1.22)}}
+  @keyframes float3{0%,100%{transform:translate(0,0) scale(1.05)}50%{transform:translate(10vw,-12vh) scale(.92)}}
+  /* scrim: เพิ่มความเข้ม/vignette ให้ content เด่น ไม่จมกับพื้นหลัง */
+  .scrim{position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background:
+      radial-gradient(130% 90% at 50% -5%, transparent 42%, rgba(2,12,24,.62) 100%),
+      linear-gradient(180deg, rgba(2,12,24,.22), rgba(2,12,24,.5));}
+  /* คลื่นซ้อนชั้นด้านล่าง (2 ชั้น) */
+  .waves{position:fixed;bottom:0;left:0;width:100%;height:170px;z-index:-2;pointer-events:none}
+  .waves svg{position:absolute;bottom:0;left:0;width:100%;height:100%}
+  .waves .w1{opacity:.5} .waves .w2{opacity:.34}
+  @media(prefers-reduced-motion:reduce){.blob,.brand .logo{animation:none}}
+
+  .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
 
   /* ---------- Header ---------- */
   header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:22px}
@@ -51,8 +72,9 @@
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(12,163,12,.6)}70%{box-shadow:0 0 0 9px rgba(12,163,12,0)}100%{box-shadow:0 0 0 0 rgba(12,163,12,0)}}
 
   /* ---------- การ์ดกระจก (glassmorphism) ---------- */
-  .glass{background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    border:1px solid var(--glass-brd);border-radius:20px;box-shadow:0 12px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06)}
+  .glass{background:var(--glass);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);
+    border:1px solid var(--glass-brd);border-radius:20px;
+    box-shadow:0 16px 48px rgba(0,4,12,.55), 0 0 0 1px rgba(255,255,255,.03), inset 0 1px 0 rgba(255,255,255,.09)}
 
   /* ---------- AI Insight Bar ---------- */
   .ai-bar{padding:18px 22px;margin-bottom:22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
@@ -138,15 +160,24 @@
   .coords .kv{font-size:13px}.coords .kv b{color:var(--accent2);font-size:17px}
 
   footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:10px;line-height:1.7}
-  .wave{position:fixed;bottom:0;left:0;width:100%;height:70px;z-index:-1;opacity:.5}
+  /* (พื้นหลังคลื่น .waves ย้ายไปนิยามด้านบนแล้ว) */
   ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(120,200,255,.25);border-radius:8px}
 </style>
 </head>
 <body>
-<svg class="wave" viewBox="0 0 1440 80" preserveAspectRatio="none"><path fill="#0a3a5f">
-  <animate attributeName="d" dur="8s" repeatCount="indefinite"
-    values="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z;M0,40 C360,0 1080,80 1440,40 L1440,80 L0,80 Z;M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z"/>
-</path></svg>
+<!-- พื้นหลังทะเลเคลื่อนไหว: aurora blobs + คลื่นซ้อนชั้น + scrim -->
+<div class="ocean"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+<div class="waves">
+  <svg class="w1" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#0c4a75">
+    <animate attributeName="d" dur="11s" repeatCount="indefinite"
+      values="M0,60 C300,110 720,12 1080,56 C1260,78 1380,50 1440,58 L1440,120 L0,120 Z;M0,56 C320,12 740,104 1080,56 C1250,26 1360,72 1440,56 L1440,120 L0,120 Z;M0,60 C300,110 720,12 1080,56 C1260,78 1380,50 1440,58 L1440,120 L0,120 Z"/>
+  </path></svg>
+  <svg class="w2" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#0a6ea0">
+    <animate attributeName="d" dur="15s" repeatCount="indefinite"
+      values="M0,82 C360,42 780,112 1140,72 C1300,54 1380,82 1440,74 L1440,120 L0,120 Z;M0,74 C340,112 760,32 1140,80 C1310,106 1390,62 1440,82 L1440,120 L0,120 Z;M0,82 C360,42 780,112 1140,72 C1300,54 1380,82 1440,74 L1440,120 L0,120 Z"/>
+  </path></svg>
+</div>
+<div class="scrim"></div>
 
 <div class="wrap">
   <header>
