@@ -66,21 +66,21 @@
 
   /* ===== ฝูงปลาว่ายในน้ำ (อยู่เหนือ scrim ให้เห็นชัด แต่ใต้ content) ===== */
   .school{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
-  .fish{position:absolute;will-change:transform}
+  .fish{position:absolute;left:0;will-change:transform;filter:drop-shadow(0 0 10px rgba(120,200,255,.45))}
   .fish i{display:block;font-style:normal;animation:finbob 3s ease-in-out infinite}
   @keyframes finbob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
   @keyframes swimL{from{transform:translateX(112vw)}to{transform:translateX(-16vw)}}
   @keyframes swimR{from{transform:translateX(-16vw) scaleX(-1)}to{transform:translateX(112vw) scaleX(-1)}}
-  .f1{top:5%;font-size:34px;opacity:.7;animation:swimL 30s linear infinite}
-  .f2{top:12%;font-size:24px;opacity:.6;animation:swimR 46s linear infinite;animation-delay:-6s}
-  .f3{top:22%;font-size:30px;opacity:.66;animation:swimL 38s linear infinite;animation-delay:-14s}
-  .f4{top:34%;font-size:26px;opacity:.6;animation:swimR 50s linear infinite;animation-delay:-20s}
-  .f5{top:44%;font-size:22px;opacity:.55;animation:swimL 42s linear infinite;animation-delay:-4s}
-  .f6{top:55%;font-size:32px;opacity:.66;animation:swimR 34s linear infinite;animation-delay:-24s}
-  .f7{top:64%;font-size:20px;opacity:.55;animation:swimL 55s linear infinite;animation-delay:-30s}
-  .f8{top:74%;font-size:28px;opacity:.62;animation:swimR 40s linear infinite;animation-delay:-10s}
-  .f9{top:84%;font-size:24px;opacity:.58;animation:swimL 36s linear infinite;animation-delay:-18s}
-  .f10{top:92%;font-size:36px;opacity:.7;animation:swimR 44s linear infinite;animation-delay:-2s}
+  .f1{top:5%;font-size:36px;opacity:.9;animation:swimL 30s linear infinite}
+  .f2{top:12%;font-size:26px;opacity:.8;animation:swimR 46s linear infinite;animation-delay:-6s}
+  .f3{top:22%;font-size:32px;opacity:.85;animation:swimL 38s linear infinite;animation-delay:-14s}
+  .f4{top:34%;font-size:28px;opacity:.8;animation:swimR 50s linear infinite;animation-delay:-20s}
+  .f5{top:44%;font-size:24px;opacity:.78;animation:swimL 42s linear infinite;animation-delay:-4s}
+  .f6{top:55%;font-size:34px;opacity:.85;animation:swimR 34s linear infinite;animation-delay:-24s}
+  .f7{top:64%;font-size:22px;opacity:.78;animation:swimL 55s linear infinite;animation-delay:-30s}
+  .f8{top:74%;font-size:30px;opacity:.82;animation:swimR 40s linear infinite;animation-delay:-10s}
+  .f9{top:84%;font-size:26px;opacity:.8;animation:swimL 36s linear infinite;animation-delay:-18s}
+  .f10{top:92%;font-size:38px;opacity:.9;animation:swimR 44s linear infinite;animation-delay:-2s}
   @media(prefers-reduced-motion:reduce){.blob,.brand .logo,.rays,.fish,.fish i{animation:none}.school{display:none}}
 
   .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
