@@ -350,8 +350,8 @@ const CONFIG = {
 /* สมมติในการใช้งานจริงเก็บข้อมูลทุกกี่นาที (ใช้แปลงคำพยากรณ์เป็น "นาที") */
 const SAMPLE_MIN = 5;
 
-/* ติดตาม "ข้อมูลล่าสุด" เพื่อโชว์สถานะออนไลน์/ค้าง */
-let lastDataAt = null, lastTs = null;
+/* ติดตาม "ข้อมูลล่าสุด" เพื่อโชว์สถานะออนไลน์/ค้าง + กันเก็บ history ซ้ำ */
+let lastDataAt = null, lastTs = null, lastPushAt = null;
 
 /* =========================================================================
    นิยาม 7 พารามิเตอร์
@@ -788,6 +788,11 @@ function renderNoData(p){
 
 async function tick(){
   const data=await fetchData();
+  // โหมดจริง (supabase/server/...) เก็บ history เฉพาะเมื่อมี "ข้อมูลใหม่" เท่านั้น
+  // (กัน AI เข้าใจผิดว่า probe ค้าง จากการ poll ค่าเดิมซ้ำ) — mock อัปเดตทุกรอบเสมอ
+  const isReal = CONFIG.mode !== 'mock';
+  if (isReal && (lastDataAt == null || lastDataAt === lastPushAt)){ updateStatus(); return; }
+  lastPushAt = lastDataAt;
   const stamp=new Date().toLocaleTimeString('th-TH');
   times.push(stamp); if(times.length>HISTORY_LEN)times.shift();
   PARAMS.forEach(p=>{
