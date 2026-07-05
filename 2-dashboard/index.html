@@ -64,8 +64,8 @@
   .wqi-chip .lbl{font-size:11px;color:var(--muted);margin-top:3px}
 
   /* ---------- Grid การ์ดค่า ---------- */
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:16px;margin-bottom:22px}
-  .card{padding:18px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:rise .5s both}
+  .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:22px}
+  .card{flex:1 1 240px;max-width:300px;padding:18px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:rise .5s both}
   .card:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(0,0,0,.45),0 0 0 1px var(--glass-brd),0 0 24px rgba(49,200,255,.18)}
   @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
   .card .accent{position:absolute;top:0;left:0;width:4px;height:100%;border-radius:4px 0 0 4px}
@@ -184,7 +184,7 @@
     </div>
     <div class="glass panel">
       <h2>🔮 พยากรณ์ &amp; แจ้งเตือน (AI)</h2>
-      <div class="sub">วิเคราะห์แนวโน้มและความผิดปกติแบบเรียลไทม์ — ช่วยเฝ้าระวังแทนคน</div>
+      <div class="sub">วิเคราะห์แนวโน้ม/ความผิดปกติแบบเรียลไทม์ — เก็บ<b style="color:var(--accent2)">ประวัติการแจ้งเตือนไว้ ของเก่าไม่หาย</b></div>
       <div class="feed" id="feed"></div>
     </div>
   </div>
@@ -471,22 +471,48 @@ function drawContrib(parts){
       <span class="pv">${si}</span></div>`;}).join('');
 }
 
-/* ฟีดพยากรณ์ + ความผิดปกติ */
-function renderFeed(wqiObj){
-  const items=[];
+/* ฟีดแจ้งเตือนแบบ "ล็อกสะสม" — ของเก่าไม่หาย เตือนใหม่ต่อท้ายด้านบน มี timestamp
+   กันเพิ่มซ้ำ: เตือนเฉพาะตอน 'เพิ่งเกิด' และบันทึกตอน 'กลับสู่ปกติ' (edge detection) */
+const alertLog = [];          // ประวัติแจ้งเตือนทั้งหมด (เก็บไว้ ไม่ลบ)
+let activeInfo = new Map();    // คีย์ที่กำลัง active รอบก่อน (ใช้ตรวจว่าอันไหนเพิ่งเกิด/เพิ่งหาย)
+const MAX_LOG = 100;          // เก็บสูงสุดกี่รายการ (กันยาวเกิน)
+
+function pushAlert(cls, icon, text, meta){
+  alertLog.unshift({ cls, icon, text, meta, time: new Date().toLocaleString('th-TH') });
+  if (alertLog.length > MAX_LOG) alertLog.pop();
+}
+
+function updateAlerts(){
+  const now = new Map();
   PARAMS.forEach(p=>{
-    const z=anomaly(p.key);
-    if(z!=null) items.push({cls:'serious',icon:'⚠️',
-      t:`<b>${p.th}</b> ค่าเปลี่ยนผิดปกติ (${z>0?'พุ่งสูง':'ตกวูบ'} ${Math.abs(z).toFixed(1)}σ)`,
-      m:'ตรวจพบโดย z-score · ควรตรวจสอบ sensor/สภาพน้ำ'});
-    const r=timeToRisk(p);
-    if(r) items.push({cls:'warning',icon:'🔮',
-      t:`คาดว่า <b>${p.th}</b> จะ${r.dir}เกณฑ์ในอีก ~${r.mins} นาที`,
-      m:'พยากรณ์จากแนวโน้ม (linear regression)'});
+    const z = anomaly(p.key);
+    if (z != null) now.set('anom-'+p.key, {th:p.th, cls:'serious', icon:'⚠️',
+      text:`<b>${p.th}</b> ค่าเปลี่ยนผิดปกติ (${z>0?'พุ่งสูง':'ตกวูบ'} ${Math.abs(z).toFixed(1)}σ)`,
+      meta:'ตรวจพบโดย z-score · ควรตรวจ sensor/สภาพน้ำ'});
+    const r = timeToRisk(p);
+    if (r) now.set('risk-'+p.key, {th:p.th, cls:'warning', icon:'🔮',
+      text:`คาดว่า <b>${p.th}</b> จะ${r.dir}เกณฑ์ในอีก ~${r.mins} นาที`,
+      meta:'พยากรณ์แนวโน้ม (linear regression)'});
   });
-  if(!items.length) items.push({cls:'good',icon:'✅',t:'ทุกค่าอยู่ในเกณฑ์ปกติ ไม่พบแนวโน้มผิดปกติ',m:'AI เฝ้าระวังอยู่'});
-  document.getElementById('feed').innerHTML=items.slice(0,8).map(it=>
-    `<div class="fitem ${it.cls}"><span class="fi">${it.icon}</span><div><div class="ft">${it.t}</div><div class="fm">${it.m}</div></div></div>`).join('');
+  // เพิ่งเกิด (ยังไม่เคย active) -> บันทึกลงล็อก
+  now.forEach((v,k)=>{ if(!activeInfo.has(k)) pushAlert(v.cls, v.icon, v.text, v.meta); });
+  // เพิ่งหาย (เคย active แต่รอบนี้ไม่มีแล้ว) -> บันทึกว่ากลับปกติ
+  activeInfo.forEach((v,k)=>{ if(!now.has(k)) pushAlert('good','✅',`<b>${v.th}</b> กลับสู่ภาวะปกติแล้ว`,'AI เฝ้าระวังต่อ'); });
+  activeInfo = new Map([...now].map(([k,v])=>[k,{th:v.th}]));
+}
+
+function renderFeed(){
+  const feed = document.getElementById('feed');
+  if (!alertLog.length){
+    feed.innerHTML = `<div class="fitem good"><span class="fi">✅</span><div>
+      <div class="ft">ยังไม่มีการแจ้งเตือน — AI เฝ้าระวังอยู่</div>
+      <div class="fm">เมื่อพบความผิดปกติจะบันทึกไว้ที่นี่ (ของเก่าไม่หาย)</div></div></div>`;
+    return;
+  }
+  feed.innerHTML = alertLog.map(a=>
+    `<div class="fitem ${a.cls}"><span class="fi">${a.icon}</span><div>
+      <div class="ft">${a.text}</div>
+      <div class="fm">🕒 ${a.time} · ${a.meta}</div></div></div>`).join('');
 }
 
 /* ตารางประวัติ */
@@ -552,7 +578,7 @@ async function tick(){
   const catEl=document.getElementById('wqi-cat'); catEl.textContent=wqiObj.cat; catEl.style.color=STATUS_HEX[wqiObj.cls];
   drawContrib(wqiObj.parts);
   document.getElementById('ai-text').innerHTML=buildInsight(wqiObj);
-  renderFeed(wqiObj);
+  updateAlerts(); renderFeed();
   drawChart(); renderTable();
   document.getElementById('clock').textContent=stamp;
 }
