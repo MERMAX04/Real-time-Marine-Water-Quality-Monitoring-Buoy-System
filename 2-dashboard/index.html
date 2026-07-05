@@ -326,7 +326,7 @@
 
   <footer>
     โปรเจคจบ · ข้อมูลตอนนี้เป็น <b>Mock Data</b> — เปลี่ยนเป็น Firebase/Server ได้ที่ <code>CONFIG.mode</code><br>
-    AI Engine ทำงานในเบราว์เซอร์ (พยากรณ์ = linear regression · ผิดปกติ = z-score · WQI = ดัชนีถ่วงน้ำหนัก)
+    AI Engine ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
 </div>
 
@@ -395,21 +395,28 @@ function statusOf(si){
   return             {cls:'critical', txt:'วิกฤต',      icon:'✕'};
 }
 
-/* ---------- AI: linear regression พยากรณ์แนวโน้ม ---------- */
+/* ---------- AI: พยากรณ์แนวโน้ม (Holt's double exponential smoothing + ความเชื่อมั่น) ---------- */
 function forecast(key){
-  const d = history[key]; const n = Math.min(d.length, 20);
-  if (n < 5) return null;
+  const d = history[key]; const n = Math.min(d.length, 24);
+  if (n < 6) return null;
   const s = d.slice(-n);
-  let sx=0,sy=0,sxy=0,sxx=0;
-  s.forEach((y,i)=>{ sx+=i; sy+=y; sxy+=i*y; sxx+=i*i; });
-  const slope = (n*sxy - sx*sy) / (n*sxx - sx*sx || 1);
-  const cur = s[n-1];
-  const next = cur + slope * 3;                 // ทำนายอีก 3 รอบข้างหน้า
-  return { slope, cur, next };
+  let level = s[0], trend = s[1]-s[0];
+  const a = 0.4, b = 0.3;                        // ความไวของ level / trend
+  for (let i=1;i<n;i++){
+    const prev = level;
+    level = a*s[i] + (1-a)*(level+trend);        // ปรับ level แบบเรียบ (กรอง noise)
+    trend = b*(level-prev) + (1-b)*trend;        // ปรับ trend แบบเรียบ
+  }
+  // ความเชื่อมั่นของแนวโน้ม = เทียบ trend กับ noise (SD ของผลต่างรายก้าว)
+  const diffs=[]; for(let i=1;i<n;i++) diffs.push(s[i]-s[i-1]);
+  const md = diffs.reduce((x,y)=>x+y,0)/diffs.length;
+  const sd = Math.sqrt(diffs.reduce((x,y)=>x+(y-md)**2,0)/diffs.length) || 1e-9;
+  const conf = Math.min(1, Math.abs(trend)/(sd+1e-9));
+  return { slope:trend, cur:level, next:level+trend*3, conf };
 }
-/* ประเมินว่าเข้าใกล้ขอบเขตอันตรายในอีกกี่รอบ */
+/* ประเมินว่าเข้าใกล้ขอบเขตอันตรายในอีกกี่รอบ (พยากรณ์เฉพาะตอนแนวโน้มชัดพอ) */
 function timeToRisk(p){
-  const f = forecast(p.key); if (!f || Math.abs(f.slope) < 1e-4) return null;
+  const f = forecast(p.key); if (!f || Math.abs(f.slope) < 1e-4 || f.conf < 0.35) return null;
   const [lo,hi] = p.ideal;
   let target = null;
   if (f.slope > 0 && f.cur <= hi) target = hi;   // กำลังขึ้นไปหาขอบบน
@@ -427,6 +434,67 @@ function anomaly(key){
   const sd = Math.sqrt(w.reduce((a,b)=>a+(b-mean)**2,0)/w.length) || 1;
   const z = (d[d.length-1]-mean)/sd;
   return Math.abs(z) >= 2.2 ? z : null;
+}
+
+/* ---------- AI: แปลผลหลายค่าพร้อมกันเป็น "เหตุการณ์" ---------- */
+function detectEvents(){
+  const P={}; PARAMS.forEach(p=>P[p.key]=p);
+  const has=k=>history[k].length>0;
+  const si=k=>has(k)?subIndex(P[k],history[k].at(-1)):100;   // 0-100 (ต่ำ=แย่)
+  const ev=[];
+  // สาหร่ายบลูม (ยูโทรฟิเคชัน): คลอโรฟิลล์ + สาหร่ายสีเขียวสูงพร้อมกัน
+  if (si('chl')<55 && si('algae')<60){
+    const crit = si('do')<45;
+    ev.push({id:'bloom', cls:crit?'critical':'serious', icon:'🦠',
+      title:'เสี่ยงสาหร่ายบลูม (ยูโทรฟิเคชัน)',
+      detail:'คลอโรฟิลล์และสาหร่ายสีเขียวสูงพร้อมกัน'+(crit?' ร่วมกับออกซิเจนต่ำ':''),
+      action:'เฝ้าระวัง DO ช่วงกลางคืน อาจต่ำจนสัตว์น้ำขาดออกซิเจน'});
+  }
+  // ปนเปื้อน/คราบน้ำมัน: น้ำมัน + ความขุ่นสูงพร้อมกัน
+  if (si('oil')<55 && si('turb')<60)
+    ev.push({id:'contam', cls:'serious', icon:'🛢️',
+      title:'อาจมีการปนเปื้อน/คราบน้ำมัน',
+      detail:'น้ำมันและความขุ่นสูงผิดปกติพร้อมกัน',
+      action:'ตรวจแหล่งน้ำทิ้ง/เรือในบริเวณ และเก็บตัวอย่างน้ำ'});
+  // ออกซิเจนต่ำวิกฤต (Hypoxia)
+  if (si('do')<28)
+    ev.push({id:'hypoxia', cls:'critical', icon:'🫧',
+      title:'ภาวะออกซิเจนต่ำวิกฤต (Hypoxia)',
+      detail:'ออกซิเจนละลายน้ำต่ำมาก',
+      action:'เสี่ยงสัตว์น้ำตายหมู่ ควรแจ้งเจ้าหน้าที่ทันที'});
+  // ตะกอนแขวนลอยสูง
+  if (si('turb')<40)
+    ev.push({id:'turbid', cls:'warning', icon:'🌫️',
+      title:'ตะกอนแขวนลอยสูง',
+      detail:'ความขุ่นสูงกว่าเกณฑ์',
+      action:'อาจมีการขุดลอก/ตะกอนไหลลงจากฝน — เฝ้าดูแนวโน้ม'});
+  return ev;
+}
+
+/* ---------- AI: ตรวจสุขภาพ sensor / คุณภาพข้อมูล (แยก "probe เสีย" ออกจาก "น้ำเปลี่ยนจริง") ---------- */
+function sensorIssues(){
+  const out=[];
+  PARAMS.forEach(p=>{
+    const d=history[p.key]; if(d.length<8) return;
+    const w=d.slice(-8), rng=p.range[1]-p.range[0], last=d.at(-1);
+    if((Math.max(...w)-Math.min(...w)) < rng*0.0008)                       // 1) ค่านิ่งค้าง
+      out.push({key:p.key, th:p.th, cls:'warning', text:`<b>${p.th}</b> ค่านิ่งค้างหลายรอบ`,
+        meta:'อาจ probe ค้าง/สายหลุด — ตรวจการต่อ หรือสั่งล้าง probe'});
+    else if(last < p.range[0]-rng*0.03 || last > p.range[1]+rng*0.03)      // 2) เกินช่วงกายภาพ
+      out.push({key:p.key, th:p.th, cls:'serious', text:`<b>${p.th}</b> ค่าเกินช่วงที่เป็นไปได้`,
+        meta:'probe ผิดปกติ/คาลิเบรตเพี้ยน — ไม่ควรเชื่อค่านี้'});
+    else{                                                                   // 3) สัญญาณกระโดด (glitch)
+      const prev=d.slice(-9,-1);
+      if(prev.length>=6){
+        const pm=prev.reduce((a,b)=>a+b,0)/prev.length;
+        const ps=Math.sqrt(prev.reduce((a,b)=>a+(b-pm)**2,0)/prev.length);
+        if(ps>0 && Math.abs(last-pm) > 6*ps)
+          out.push({key:p.key, th:p.th, cls:'warning', text:`<b>${p.th}</b> สัญญาณกระโดดผิดปกติ`,
+            meta:'สายรบกวน/ต่อหลวม — ไม่ใช่การเปลี่ยนของน้ำจริง'});
+      }
+    }
+  });
+  return out;
 }
 /* ---------- AI: WQI รวม + หมวด ---------- */
 function computeWQI(){
@@ -447,8 +515,14 @@ function computeWQI(){
 function buildInsight(wqiObj){
   const worst = PARAMS.map(p=>({p,si:wqiObj.parts[p.key]??100})).sort((a,b)=>a.si-b.si)[0];
   const risks = PARAMS.map(p=>({p,r:timeToRisk(p)})).filter(x=>x.r);
+  const events = detectEvents();
   let msg = `คุณภาพน้ำโดยรวมอยู่ระดับ <b>${wqiObj.cat}</b> (WQI ${wqiObj.wqi}). `;
-  if (worst.si < 75) msg += `ค่าที่ควรจับตาคือ <b>${worst.p.th}</b>. `;
+  if (events.length){
+    const order={critical:0,serious:1,warning:2};
+    const top = events.sort((a,b)=>order[a.cls]-order[b.cls])[0];
+    const col = STATUS_HEX[top.cls] || 'var(--warning)';
+    msg += `<b style="color:${col}">${top.icon} ตรวจพบ: ${top.title}</b> — ${top.action}. `;
+  } else if (worst.si < 75) msg += `ค่าที่ควรจับตาคือ <b>${worst.p.th}</b>. `;
   else msg += `ทุกค่าอยู่ในเกณฑ์ดี. `;
   if (risks.length){
     const r = risks.sort((a,b)=>a.r.mins-b.r.mins)[0];
@@ -474,7 +548,7 @@ function initSource(){
 }
 /* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ AI มีอะไรให้วิเคราะห์ตอนเดโม */
 const mockState = {};
-PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0});
+PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0, frozen:0});
 async function fetchData(){
   if (CONFIG.mode==='firebase'){ const o={}; PARAMS.forEach(p=>{if(fbLatest[p.key]!=null)o[p.key]=Number(fbLatest[p.key])}); return o; }
   if (CONFIG.mode==='server'){
@@ -487,6 +561,10 @@ async function fetchData(){
   lastDataAt=Date.now();   // mock: สดเสมอ
   PARAMS.forEach(p=>{
     const st=mockState[p.key], sp=(p.range[1]-p.range[0]);
+    // --- glitch จำลอง (นานๆ ครั้ง) เพื่อให้ AI ตรวจสุขภาพ sensor มีของให้จับตอนเดโม ---
+    if(st.frozen>0){ st.frozen--; o[p.key]=st.v; return; }              // ค่านิ่งค้าง (flatline)
+    if(Math.random()<0.0007){ st.frozen=8; o[p.key]=st.v; return; }     // เริ่ม flatline
+    if(Math.random()<0.0006){ o[p.key]=p.range[1]+sp*0.15; return; }    // spike เกินช่วง (1 รอบ)
     if(st.driftT<=0 && Math.random()<0.015){ st.drift=(Math.random()-0.45)*sp*0.02; st.driftT=15+Math.random()*25; }
     if(st.driftT>0){ st.v+=st.drift; st.driftT--; }
     st.v += (Math.random()-0.5)*sp*0.03;
@@ -607,19 +685,25 @@ function updateAlerts(){
   const now = new Map();
   PARAMS.forEach(p=>{
     const z = anomaly(p.key);
-    if (z != null) now.set('anom-'+p.key, {th:p.th, cls:'serious', icon:'⚠️',
+    if (z != null) now.set('anom-'+p.key, {label:p.th, cls:'serious', icon:'⚠️',
       text:`<b>${p.th}</b> ค่าเปลี่ยนผิดปกติ (${z>0?'พุ่งสูง':'ตกวูบ'} ${Math.abs(z).toFixed(1)}σ)`,
-      meta:'ตรวจพบโดย z-score · ควรตรวจ sensor/สภาพน้ำ'});
+      meta:'ตรวจพบโดย z-score'});
     const r = timeToRisk(p);
-    if (r) now.set('risk-'+p.key, {th:p.th, cls:'warning', icon:'🔮',
+    if (r) now.set('risk-'+p.key, {label:p.th, cls:'warning', icon:'🔮',
       text:`คาดว่า <b>${p.th}</b> จะ${r.dir}เกณฑ์ในอีก ~${r.mins} นาที`,
-      meta:'พยากรณ์แนวโน้ม (linear regression)'});
+      meta:'พยากรณ์แนวโน้ม (Holt smoothing)'});
   });
+  // 🧭 เหตุการณ์ (แปลผลหลายค่า)
+  detectEvents().forEach(e=> now.set('event-'+e.id, {label:e.title, cls:e.cls, icon:e.icon,
+    text:`<b>${e.title}</b> — ${e.detail}`, meta:'🧭 '+e.action}));
+  // 🩺 สุขภาพ sensor
+  sensorIssues().forEach(s=> now.set('health-'+s.key, {label:s.th+' (sensor)', cls:s.cls, icon:'🩺',
+    text:s.text, meta:s.meta}));
   // เพิ่งเกิด (ยังไม่เคย active) -> บันทึกลงล็อก
   now.forEach((v,k)=>{ if(!activeInfo.has(k)) pushAlert(v.cls, v.icon, v.text, v.meta); });
-  // เพิ่งหาย (เคย active แต่รอบนี้ไม่มีแล้ว) -> บันทึกว่ากลับปกติ
-  activeInfo.forEach((v,k)=>{ if(!now.has(k)) pushAlert('good','✅',`<b>${v.th}</b> กลับสู่ภาวะปกติแล้ว`,'AI เฝ้าระวังต่อ'); });
-  activeInfo = new Map([...now].map(([k,v])=>[k,{th:v.th}]));
+  // เพิ่งหาย -> บันทึกว่ากลับปกติ
+  activeInfo.forEach((v,k)=>{ if(!now.has(k)) pushAlert('good','✅',`<b>${v.label}</b> กลับสู่ภาวะปกติแล้ว`,'AI เฝ้าระวังต่อ'); });
+  activeInfo = new Map([...now].map(([k,v])=>[k,{label:v.label}]));
 }
 
 function renderFeed(){
