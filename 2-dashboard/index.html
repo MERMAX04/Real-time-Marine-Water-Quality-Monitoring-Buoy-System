@@ -103,6 +103,10 @@
     border:1px solid var(--glass-brd);border-radius:999px;padding:8px 15px;font-size:13px}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(12,163,12,.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(12,163,12,.6)}70%{box-shadow:0 0 0 9px rgba(12,163,12,0)}100%{box-shadow:0 0 0 0 rgba(12,163,12,0)}}
+  /* สถานะการเชื่อมต่อ: ออนไลน์ / ข้อมูลค้าง / ไม่มีข้อมูล */
+  .pill.st-stale .dot{background:var(--warning);box-shadow:none;animation:none}
+  .pill.st-off .dot{background:var(--critical);box-shadow:none;animation:none}
+  .pill.st-stale{color:var(--warning)} .pill.st-off{color:#ff8080}
 
   /* ---------- การ์ดกระจก (glassmorphism) ---------- */
   .glass{background:var(--glass);backdrop-filter:blur(16px) saturate(1.1);-webkit-backdrop-filter:blur(16px) saturate(1.1);
@@ -137,6 +141,7 @@
   .card .fore{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px}
   .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px}
   .badge.good{background:rgba(12,163,12,.16);color:#4ade4a}
+  .badge.nodata{background:rgba(150,170,190,.14);color:#a9c0d6}
   .badge.warning{background:rgba(250,178,25,.16);color:var(--warning)}
   .badge.serious{background:rgba(236,131,90,.16);color:var(--serious)}
   .badge.critical{background:rgba(208,59,59,.18);color:#ff7a7a}
@@ -256,9 +261,9 @@
       </div>
     </div>
     <div class="status-bar">
-      <span class="pill"><span class="dot"></span> ออนไลน์</span>
+      <span class="pill st-on" id="conn"><span class="dot"></span> <span id="conn-txt">กำลังเชื่อมต่อ…</span></span>
       <span class="pill">📍 <span id="loc">สถานี buoy-01</span></span>
-      <span class="pill">🕒 <span id="clock">--:--:--</span></span>
+      <span class="pill">🕒 <span id="fresh">อัปเดต: —</span></span>
     </div>
   </header>
 
@@ -343,24 +348,31 @@ const CONFIG = {
     projectId:   "ใส่_PROJECT_ID",
   },
   apiBase: 'https://server-อาจารย์.ac.th/buoy/api',
+  staleSeconds: 900,   // ถ้าไม่มีข้อมูลใหม่เกินเท่านี้ = "ข้อมูลค้าง" (mock อัปเดตทุก 2 วิ จึงออนไลน์เสมอ)
 };
 
 /* สมมติในการใช้งานจริงเก็บข้อมูลทุกกี่นาที (ใช้แปลงคำพยากรณ์เป็น "นาที") */
 const SAMPLE_MIN = 5;
+
+/* ติดตาม "ข้อมูลล่าสุด" เพื่อโชว์สถานะออนไลน์/ค้าง */
+let lastDataAt = null, lastTs = null;
 
 /* =========================================================================
    นิยาม 7 พารามิเตอร์
    ideal:[lo,hi] = ช่วงที่ดี | range:[min,max] = ช่วงกายภาพ (ใช้จำลอง+คิดคะแนน)
    w = น้ำหนักใน WQI | color = สี categorical (ตรวจแล้ว)
    ========================================================================= */
+/* หน่วย = ตรงกับคู่มือ sensor (น้ำมัน=ppm, สาหร่าย=cells/mL)
+   ideal/range = เกณฑ์ (อิงแนวทางมาตรฐานคุณภาพน้ำทะเลชายฝั่ง — ⚠️ ยืนยันตัวเลขกับ
+   มาตรฐานกรมควบคุมมลพิษจริงก่อนใช้อ้างอิงในเล่มรายงาน) */
 const PARAMS = [
-  { key:'do',   th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L', icon:'🫧', color:'var(--c-do)',   ideal:[5,8],    range:[3,10],   w:.20 },
-  { key:'sal',  th:'ความเค็ม',        en:'Salinity',          unit:'ppt', icon:'🧂', color:'var(--c-sal)',  ideal:[30,34],  range:[26,36],  w:.10 },
-  { key:'turb', th:'ความขุ่น',        en:'Turbidity',         unit:'NTU', icon:'🌫️', color:'var(--c-turb)', ideal:[0,10],   range:[0,30],   w:.15 },
-  { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',     unit:'µg/L',icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],    range:[0,15],   w:.15 },
-  { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',  icon:'⚡', color:'var(--c-orp)',  ideal:[200,350],range:[100,450],w:.10 },
-  { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppb', icon:'🛢️', color:'var(--c-oil)',  ideal:[0,10],   range:[0,30],   w:.15 },
-  { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'µg/L',icon:'🦠', color:'var(--c-algae)',ideal:[0,6],    range:[0,16],   w:.15 },
+  { key:'do',   th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L',    icon:'🫧', color:'var(--c-do)',   ideal:[4,8],      range:[2,10],     w:.20 },
+  { key:'sal',  th:'ความเค็ม',        en:'Salinity',          unit:'ppt',     icon:'🧂', color:'var(--c-sal)',  ideal:[30,34],    range:[26,36],    w:.10 },
+  { key:'turb', th:'ความขุ่น',        en:'Turbidity',         unit:'NTU',     icon:'🌫️', color:'var(--c-turb)', ideal:[0,10],     range:[0,50],     w:.15 },
+  { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',     unit:'µg/L',    icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.15 },
+  { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',      icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
+  { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppm',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,2],      range:[0,15],     w:.15 },
+  { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'cells/mL',icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.15 },
 ];
 
 const HISTORY_LEN = 120;
@@ -457,7 +469,7 @@ function initSource(){
   if (CONFIG.mode === 'firebase'){
     firebase.initializeApp(CONFIG.firebase);
     firebase.database().ref(`${CONFIG.device}/latest`).on('value', s=>{
-      const v=s.val(); if(v) fbLatest=v;
+      const v=s.val(); if(v){ fbLatest=v; lastDataAt=Date.now(); }   // ได้ข้อมูลใหม่ = สด
       document.getElementById('loc').textContent = CONFIG.device+' (Firebase)';
     }, e=>console.warn('Firebase error:',e));
   }
@@ -469,10 +481,12 @@ async function fetchData(){
   if (CONFIG.mode==='firebase'){ const o={}; PARAMS.forEach(p=>{if(fbLatest[p.key]!=null)o[p.key]=Number(fbLatest[p.key])}); return o; }
   if (CONFIG.mode==='server'){
     try{ const r=await fetch(`${CONFIG.apiBase}/latest.php?device=${CONFIG.device}`); const j=await r.json();
+      if(j && j.ts && j.ts!==lastTs){ lastTs=j.ts; lastDataAt=Date.now(); }   // ts ใหม่ = ข้อมูลสด
       const o={}; PARAMS.forEach(p=>{if(j[p.key]!=null)o[p.key]=j[p.key]}); return o;
     }catch(e){ console.warn('server error',e); return {}; }
   }
   const o={};
+  lastDataAt=Date.now();   // mock: สดเสมอ
   PARAMS.forEach(p=>{
     const st=mockState[p.key], sp=(p.range[1]-p.range[0]);
     if(st.driftT<=0 && Math.random()<0.015){ st.drift=(Math.random()-0.45)*sp*0.02; st.driftT=15+Math.random()*25; }
@@ -513,11 +527,18 @@ function buildCards(){
   drawRadar();
 }
 
+/* จัดรูปแบบตัวเลขให้เหมาะกับแต่ละค่า (หลักพัน=ใส่ comma เช่น cells/mL) */
+function fmtVal(p, v){
+  if (v==null || isNaN(v)) return '—';
+  if (Math.abs(v) >= 1000) return Math.round(v).toLocaleString('en-US');
+  const dec = (p.unit==='mV') ? 0 : (Math.abs(v)<10 ? 2 : 1);
+  return v.toFixed(dec);
+}
 /* อนิเมชันนับตัวเลข */
-function animateVal(key, to, dec){
-  const el=document.getElementById('val-'+key); const from=displayVal[key]??to; const t0=performance.now();
+function animateVal(p, to){
+  const el=document.getElementById('val-'+p.key); const from=displayVal[p.key]??to; const t0=performance.now();
   function step(t){ const k=Math.min(1,(t-t0)/500); const v=from+(to-from)*(k<.5?2*k*k:1-((-2*k+2)**2)/2);
-    el.textContent=v.toFixed(dec); if(k<1)requestAnimationFrame(step); else displayVal[key]=to; }
+    el.textContent=fmtVal(p,v); if(k<1)requestAnimationFrame(step); else displayVal[p.key]=to; }
   requestAnimationFrame(step);
 }
 function drawSpark(p){
@@ -623,7 +644,7 @@ function renderTable(){
   const d=times.slice(-rangeN);
   const rows=d.map((t,idx)=>{
     const i=times.length-d.length+idx;
-    return `<tr><td>${t}</td>${PARAMS.map(p=>`<td>${(history[p.key][i]??0).toFixed(1)}</td>`).join('')}</tr>`;
+    return `<tr><td>${t}</td>${PARAMS.map(p=>`<td>${history[p.key][i]==null?'—':fmtVal(p,history[p.key][i])}</td>`).join('')}</tr>`;
   }).reverse().join('');
   document.getElementById('tblwrap').innerHTML=
     `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -654,17 +675,42 @@ function drawRadar(){
 /* =========================================================================
    ลูปอัปเดตหลัก
    ========================================================================= */
+/* ---------- สถานะข้อมูล (ออนไลน์/ค้าง + เวลาอัปเดตล่าสุด) ---------- */
+function relTime(s){
+  if(s<5) return 'เมื่อสักครู่';
+  if(s<60) return s+' วินาทีที่แล้ว';
+  const m=Math.floor(s/60); if(m<60) return m+' นาทีที่แล้ว';
+  const h=Math.floor(m/60); return `${h} ชม. ${m%60} นาที ที่แล้ว`;
+}
+function updateStatus(){
+  const conn=document.getElementById('conn'), txt=document.getElementById('conn-txt'), fresh=document.getElementById('fresh');
+  if(lastDataAt==null){ conn.className='pill st-off'; txt.textContent='ยังไม่มีข้อมูล'; fresh.textContent='อัปเดต: —'; return; }
+  const ageS=Math.max(0,Math.floor((Date.now()-lastDataAt)/1000));
+  fresh.textContent='อัปเดต: '+relTime(ageS);
+  if(ageS<=CONFIG.staleSeconds){ conn.className='pill st-on'; txt.textContent='ออนไลน์'; }
+  else { conn.className='pill st-stale'; txt.textContent='ข้อมูลค้าง'; }
+}
+/* การ์ด "ไม่มีข้อมูล" (probe ไม่ได้ต่อ/ยังไม่ได้ค่า) */
+function renderNoData(p){
+  document.getElementById('val-'+p.key).textContent='—';
+  const b=document.getElementById('badge-'+p.key); b.className='badge nodata'; b.innerHTML='<span>∅</span>ไม่มีข้อมูล';
+  document.getElementById('fore-'+p.key).textContent='';
+}
+
 async function tick(){
   const data=await fetchData();
   const stamp=new Date().toLocaleTimeString('th-TH');
   times.push(stamp); if(times.length>HISTORY_LEN)times.shift();
   PARAMS.forEach(p=>{
     let v=data[p.key];
-    if(v==null||isNaN(v)){ if(!history[p.key].length)return; v=history[p.key].at(-1); }
+    const hasNew=(v!=null && !isNaN(v));
+    if(!hasNew){
+      if(!history[p.key].length){ renderNoData(p); return; }  // ไม่เคยมีข้อมูล -> "ไม่มีข้อมูล"
+      v=history[p.key].at(-1);                                 // เคยมี -> คงค่าเดิม (สถานะรวมจะบอก "ค้าง")
+    }
     history[p.key].push(v); if(history[p.key].length>HISTORY_LEN)history[p.key].shift();
     const si=subIndex(p,v), st=statusOf(si);
-    const dec=(p.unit==='mV')?0:(v<10?2:1);
-    animateVal(p.key,v,dec);
+    animateVal(p,v);
     const b=document.getElementById('badge-'+p.key); b.className='badge '+st.cls;
     b.innerHTML=`<span>${st.icon}</span>${st.txt}`;
     const f=forecast(p.key);
@@ -682,7 +728,7 @@ async function tick(){
   document.getElementById('ai-text').innerHTML=buildInsight(wqiObj);
   updateAlerts(); renderFeed();
   drawChart(); renderTable();
-  document.getElementById('clock').textContent=stamp;
+  updateStatus();
 }
 
 buildCards();
