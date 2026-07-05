@@ -54,7 +54,7 @@
   /* คลื่นซ้อนชั้นด้านล่าง (2 ชั้น) */
   .waves{position:fixed;bottom:0;left:0;width:100%;height:170px;z-index:-2;pointer-events:none}
   .waves svg{position:absolute;bottom:0;left:0;width:100%;height:100%}
-  .waves .w1{opacity:.5} .waves .w2{opacity:.34}
+  .waves .w1{opacity:.55} .waves .w2{opacity:.5}
 
   /* ===== ลำแสงลอดน้ำ (god rays) ===== */
   .rays{position:fixed;inset:0;z-index:-2;pointer-events:none;mix-blend-mode:screen;
@@ -89,17 +89,6 @@
   /* (เดิมเคยซ่อนปลา/หยุดอนิเมชันเมื่อระบบตั้ง Reduce Motion — เอาออกเพราะทำให้ปลาหายทั้งหมด) */
 
   /* ===== ฉากพื้นทะเล (seabed) ขอบล่างจอ — ปะการัง/สาหร่าย/เปลือกหอย (อยู่หลัง content) ===== */
-  /* พื้นทราย (หลังปะการัง/ปลา แต่หน้าคลื่น -> ทรายบังคลื่น) */
-  .sand{position:fixed;left:0;bottom:0;width:100%;height:120px;z-index:0;pointer-events:none}
-  .sand svg{display:block;width:100%;height:100%}
-  /* แนวปะการัง/สาหร่าย/เปลือกหอย ยืนบนทราย (จำนวนน้อยลง ไม่รก) */
-  .seabed{position:fixed;left:0;bottom:0;width:100%;height:210px;z-index:0;pointer-events:none;overflow:hidden}
-  .seabed img{position:absolute;bottom:42px;filter:drop-shadow(0 3px 8px rgba(0,10,25,.35))}
-  .weed{transform-origin:bottom center;animation:sway var(--sd,5s) ease-in-out infinite;animation-delay:var(--sdl,0s)}
-  @keyframes sway{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
-  .d1{left:3%;width:120px}.d2{left:14%;width:92px}.d3{left:33%;width:62px}
-  .d4{left:60%;width:100px}.d5{left:80%;width:88px}.d6{left:90%;width:116px}
-
   .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
 
   /* ---------- Header ---------- */
@@ -221,8 +210,6 @@
     .panel{padding:16px}
     .gauge-num{font-size:34px}
     footer{font-size:11px}
-    .sand{height:80px}
-    .seabed{height:150px;opacity:.9}.seabed img{bottom:30px}
   }
   #radar{width:100%;height:230px;display:block}
   .coords{display:flex;flex-direction:column;justify-content:center;gap:12px}
@@ -238,11 +225,11 @@
 <div class="ocean"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
 <div class="rays"></div>
 <div class="waves">
-  <svg class="w1" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#0c4a75">
+  <svg class="w1" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#1a6d9e">
     <animate attributeName="d" dur="11s" repeatCount="indefinite"
       values="M0,60 C300,110 720,12 1080,56 C1260,78 1380,50 1440,58 L1440,120 L0,120 Z;M0,56 C320,12 740,104 1080,56 C1250,26 1360,72 1440,56 L1440,120 L0,120 Z;M0,60 C300,110 720,12 1080,56 C1260,78 1380,50 1440,58 L1440,120 L0,120 Z"/>
   </path></svg>
-  <svg class="w2" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#0a6ea0">
+  <svg class="w2" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#2f9bcf">
     <animate attributeName="d" dur="15s" repeatCount="indefinite"
       values="M0,82 C360,42 780,112 1140,72 C1300,54 1380,82 1440,74 L1440,120 L0,120 Z;M0,74 C340,112 760,32 1140,80 C1310,106 1390,62 1440,82 L1440,120 L0,120 Z;M0,82 C360,42 780,112 1140,72 C1300,54 1380,82 1440,74 L1440,120 L0,120 Z"/>
   </path></svg>
@@ -260,23 +247,6 @@
   <span class="fish f8"><i><img src="fish/fish8.png" alt=""></i></span>
   <span class="fish f9"><i><img src="fish/fish1.png" alt=""></i></span>
   <span class="fish f10"><i><img src="fish/fish5.png" alt=""></i></span>
-</div>
-<!-- พื้นทราย (อยู่หน้าคลื่น แต่หลังปะการัง/ปลา/content) -->
-<div class="sand">
-  <svg viewBox="0 0 1440 140" preserveAspectRatio="none">
-    <defs><linearGradient id="sandg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c7b083"/><stop offset="1" stop-color="#8c774f"/></linearGradient></defs>
-    <path fill="url(#sandg)" d="M0,66 C260,34 520,88 780,58 C1020,32 1240,82 1440,52 L1440,140 L0,140 Z"/>
-  </svg>
-</div>
-<!-- แนวปะการัง/สาหร่าย/เปลือกหอย ยืนบนทราย (6 ตัว) -->
-<div class="seabed">
-  <img class="d1" src="decor/coral3.png" alt="">
-  <img class="weed d2" src="decor/weed1.png" style="--sd:5s" alt="">
-  <img class="d3" src="decor/shells.png" alt="">
-  <img class="d4" src="decor/coral1.png" alt="">
-  <img class="weed d5" src="decor/weed3.png" style="--sd:4.6s;--sdl:-2s" alt="">
-  <img class="d6" src="decor/coral4.png" alt="">
 </div>
 
 <div class="wrap">
