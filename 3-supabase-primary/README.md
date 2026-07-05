@@ -1,0 +1,56 @@
+# 3-supabase-primary — แผนหลัก (Supabase / PostgreSQL)
+
+เส้นทางข้อมูล:
+```
+ESP32 (4G/WiFi) --HTTPS POST--> Supabase (ตาราง readings) --realtime--> Dashboard
+```
+Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็นตารางเหมือน Excel, query ด้วย SQL ได้)
+
+---
+
+## ขั้นที่ 1 — สร้าง Supabase Project
+1. เข้า https://supabase.com → New project (ล็อกอิน GitHub/Google)
+2. ตั้งชื่อ เช่น `buoy-monitor`, ตั้งรหัส database, เลือก region **Southeast Asia (Singapore)**
+3. รอสร้างเสร็จ ~2 นาที
+
+## ขั้นที่ 2 — สร้างตาราง + สิทธิ์ + realtime
+1. เมนูซ้าย **SQL Editor** → New query
+2. วางเนื้อหาไฟล์ `schema.sql` ทั้งหมด → กด **Run**
+3. จะได้ตาราง `readings` + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
+
+## ขั้นที่ 3 — เอา URL + anon key มาใส่ Dashboard
+1. เมนูซ้าย **Project Settings (เฟือง)** → **API**
+2. ก๊อป 2 ค่า:
+   - **Project URL** → `https://xxxx.supabase.co`
+   - **anon public** key (ยาว ขึ้นต้น `eyJ...`)
+3. ใส่ใน `2-dashboard/index.html` ที่ `CONFIG.supabase`:
+   ```js
+   supabase: {
+     url:     "https://xxxx.supabase.co",
+     anonKey: "eyJhbGciOi....",
+   },
+   ```
+4. เปลี่ยน `CONFIG.mode` เป็น `'supabase'`
+
+## ขั้นที่ 4 — ทดสอบก่อนมี ESP32 (ไม่ต้องมีฮาร์ดแวร์!)
+1. เมนูซ้าย **Table Editor** → ตาราง `readings` → **Insert row**
+2. ใส่ค่าเช่น `device=buoy-01, do_val=6.2, sal=32, turb=8, chl=3, orp=280, oil=1.2, algae=8000` → Save
+3. เปิด `2-dashboard/index.html` → **ค่าต้องขึ้นทันที** และถ้า insert แถวใหม่ Dashboard เปลี่ยน**สดๆ** = realtime ทำงาน ✅
+
+## ขั้นที่ 5 — ต่อ ESP32
+- ใช้ `esp32-supabase-test.ino` (ส่งค่าปลอมทุก 5 วิ) — แก้ WiFi + URL + anon key แล้วอัปโหลด
+- Serial Monitor ควรได้ **HTTP 201** = insert สำเร็จ / ถ้า **401/403** = RLS หรือ anon key ผิด (เช็ค schema.sql)
+
+---
+
+## ⚠️ 3 จุดที่วางแผนไว้แล้ว (กันเสียเวลาทีหลัง)
+| จุด | จัดการแล้วที่ |
+|-----|--------------|
+| **HTTPS** บน ESP32 | `client.setInsecure()` ในโค้ด .ino |
+| **RLS** (ไม่งั้น 403) | policy anon insert/read ใน `schema.sql` |
+| **anon key** | ใช้ public key + RLS จำกัดสิทธิ์ |
+
+## หมายเหตุ
+- Free tier จะ **pause หลังไม่ใช้งาน 7 วัน** — ทุ่นที่ส่งข้อมูลตลอดจะไม่ pause; ถ้าปิดทุ่นนานเกินสัปดาห์ให้กด unpause
+- ต่อจริงแล้วอยากปลอดภัยขึ้น: จำกัด RLS ให้ insert อย่างเดียว หรือใช้ Postgres role แยก
+- ทำกราฟย้อนหลัง: query `readings` หรือ view `readings_daily` ด้วย supabase-js ได้เลย

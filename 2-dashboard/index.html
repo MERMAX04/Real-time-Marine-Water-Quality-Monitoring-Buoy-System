@@ -8,6 +8,8 @@
 <!-- Firebase SDK (โหลดจาก CDN — ต้องต่อเน็ต ใช้เฉพาะโหมด firebase) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- Supabase SDK (โหลดจาก CDN — ใช้เฉพาะโหมด supabase) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Font: Bai Jamjuree (ไทย+ตัวเลข) จาก Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -325,7 +327,7 @@
   </div>
 
   <footer>
-    โปรเจคจบ · ข้อมูลตอนนี้เป็น <b>Mock Data</b> — เปลี่ยนเป็น Firebase/Server ได้ที่ <code>CONFIG.mode</code><br>
+    โปรเจคจบ · ข้อมูลตอนนี้เป็น <b>Mock Data</b> — เปลี่ยนเป็น Supabase/Firebase/Server ได้ที่ <code>CONFIG.mode</code><br>
     AI Engine ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
 </div>
@@ -333,12 +335,18 @@
 <script>
 /* =========================================================================
    CONFIG — สลับแหล่งข้อมูลตรงนี้จุดเดียว (แก้ค่า mode)
-   'mock' = ค่าปลอมเดโม | 'firebase' = แผนหลัก | 'server' = แผนสำรอง
+   'mock' = ค่าปลอมเดโม | 'supabase' = แผนหลัก | 'firebase'/'server' = ทางเลือก
    ดูวิธีสลับละเอียดที่ SWITCHING-GUIDE.md
    ========================================================================= */
 const CONFIG = {
   mode: 'mock',
   device: 'buoy-01',
+  // ---- โหมด 'supabase' (แผนหลัก) : เอาค่าจาก Supabase > Project Settings > API ----
+  supabase: {
+    url:     "https://ใส่_PROJECT_REF.supabase.co",
+    anonKey: "ใส่_ANON_PUBLIC_KEY",   // public key (ขึ้นต้น eyJ...)
+  },
+  // ---- โหมด 'firebase' ----
   firebase: {
     apiKey:      "ใส่_API_KEY",
     authDomain:  "ใส่_PROJECT_ID.firebaseapp.com",
@@ -536,7 +544,9 @@ function buildInsight(wqiObj){
 /* =========================================================================
    แหล่งข้อมูล (mock / firebase / server)
    ========================================================================= */
-let fbLatest = {};
+let fbLatest = {}, sbLatest = {};
+/* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
+function mapRow(r){ return {do:r.do_val, sal:r.sal, turb:r.turb, chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }
 function initSource(){
   if (CONFIG.mode === 'firebase'){
     firebase.initializeApp(CONFIG.firebase);
@@ -545,11 +555,26 @@ function initSource(){
       document.getElementById('loc').textContent = CONFIG.device+' (Firebase)';
     }, e=>console.warn('Firebase error:',e));
   }
+  if (CONFIG.mode === 'supabase'){
+    const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+    document.getElementById('loc').textContent = CONFIG.device+' (Supabase)';
+    // 1) ดึงค่าล่าสุดครั้งแรก
+    sb.from('readings').select('*').eq('device',CONFIG.device)
+      .order('created_at',{ascending:false}).limit(1)
+      .then(({data,error})=>{ if(error) console.warn('Supabase load error:',error);
+        if(data && data[0]){ sbLatest=mapRow(data[0]); lastDataAt=Date.now(); } });
+    // 2) ฟังแถวใหม่แบบ realtime (มี INSERT = ข้อมูลสด)
+    sb.channel('readings-'+CONFIG.device)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'readings',filter:`device=eq.${CONFIG.device}`},
+        payload=>{ sbLatest=mapRow(payload.new); lastDataAt=Date.now(); })
+      .subscribe();
+  }
 }
 /* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ AI มีอะไรให้วิเคราะห์ตอนเดโม */
 const mockState = {};
 PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0, frozen:0});
 async function fetchData(){
+  if (CONFIG.mode==='supabase'){ const o={}; PARAMS.forEach(p=>{if(sbLatest[p.key]!=null)o[p.key]=Number(sbLatest[p.key])}); return o; }
   if (CONFIG.mode==='firebase'){ const o={}; PARAMS.forEach(p=>{if(fbLatest[p.key]!=null)o[p.key]=Number(fbLatest[p.key])}); return o; }
   if (CONFIG.mode==='server'){
     try{ const r=await fetch(`${CONFIG.apiBase}/latest.php?device=${CONFIG.device}`); const j=await r.json();

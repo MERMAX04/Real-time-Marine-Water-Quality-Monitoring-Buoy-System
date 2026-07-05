@@ -14,9 +14,10 @@
 | โฟลเดอร์ | คืออะไร | สถานะ |
 |----------|---------|-------|
 | **1-sensor-tools/** | เครื่องมือ Python แก้ปัญหาอ่านค่า sensor ผ่าน RS485 | 🔧 กำลังแก้ปัญหา |
-| **2-dashboard/** | หน้าเว็บแสดงผล (สลับแหล่งข้อมูลได้ 3 โหมด) | ✅ ใช้งานได้ (mock) |
-| **3-firebase-primary/** | ★ แผนหลัก ★ ตั้งค่า Firebase + โค้ด ESP32 | 📋 รอตั้งค่า |
-| **4-server-backup/** | แผนสำรอง: PHP+MySQL API + โค้ด ESP32 | 📦 เตรียมไว้แล้ว |
+| **2-dashboard/** | หน้าเว็บแสดงผล (สลับแหล่งข้อมูลได้ 4 โหมด) | ✅ ใช้งานได้ (mock) |
+| **3-supabase-primary/** | ★ แผนหลัก ★ Supabase (SQL) + SQL + โค้ด ESP32 | 📋 รอตั้งค่า |
+| **3-firebase-primary/** | ทางเลือก: Firebase (NoSQL) + โค้ด ESP32 | 📋 ทางเลือก |
+| **4-server-backup/** | ทางเลือก: PHP+MySQL API + โค้ด ESP32 | 📦 เตรียมไว้แล้ว |
 | **5-extensions/** | roadmap ต่อยอด: AI ผู้ช่วย, แจ้งเตือน, เทรนด์, หลายทุ่น | 💡 แนวทางเตรียมไว้ |
 
 > 🔄 **จะสลับ Firebase ↔ Server อาจารย์?** ดู [SWITCHING-GUIDE.md](SWITCHING-GUIDE.md) — บอกทุกจุดที่ต้องแก้ทั้งฝั่ง ESP32 และ Dashboard
@@ -24,7 +25,7 @@
 
 ## ตอนนี้ทำอะไรได้เลย
 1. **ดู Dashboard:** เปิด `2-dashboard/index.html` — เห็นค่าปลอมขยับ realtime (โหมด mock)
-2. **ตั้ง Firebase:** ทำตาม `3-firebase-primary/README.md` ทีละขั้น แล้วเปลี่ยน `CONFIG.mode = 'firebase'`
+2. **ตั้ง Supabase (แผนหลัก):** ทำตาม `3-supabase-primary/README.md` ทีละขั้น แล้วเปลี่ยน `CONFIG.mode = 'supabase'`
 3. **แก้ปัญหา sensor:** ทำตาม `1-sensor-tools/README.md`
 
 ## ค่าที่วัด (7 พารามิเตอร์)
