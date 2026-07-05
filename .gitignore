@@ -1,0 +1,17 @@
+# ===== ความลับ ห้าม commit ขึ้น GitHub เด็ดขาด =====
+# ใส่ค่าจริงพวกนี้ผ่าน environment variable บน server แทน
+.env
+*.key
+secrets.php
+config.local.php
+
+# ===== ไฟล์ระบบ/ชั่วคราว =====
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+__pycache__/
+*.pyc
+
+# ===== เครื่องมือชั่วคราวของ Python =====
+1-sensor-tools/dash_check.js

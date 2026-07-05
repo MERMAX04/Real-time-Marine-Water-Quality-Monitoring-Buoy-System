@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ทุ่นตรวจคุณภาพน้ำทะเล | AI Realtime Dashboard</title>
+<!-- Firebase SDK (โหลดจาก CDN — ต้องต่อเน็ต ใช้เฉพาะโหมด firebase) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    /* ---- พื้นผิว/ธีมทะเล ---- */
+    --bg:#03111f; --surface:#0b2740; --glass:rgba(18,58,94,.45); --glass-brd:rgba(120,200,255,.16);
+    --text:#eaf6ff; --muted:#8fb3cf; --accent:#31c8ff; --accent2:#5affd6;
+    /* ---- สีสถานะ (ผ่านตัวตรวจ dataviz — ใช้คู่ไอคอน+ป้ายเสมอ) ---- */
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    /* ---- สี categorical 7 พารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
+    --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-chl:#008300;
+    --c-orp:#9085e9; --c-oil:#e66767; --c-algae:#d55181;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:'Segoe UI',Tahoma,system-ui,sans-serif;color:var(--text);
+    background:var(--bg);min-height:100vh;overflow-x:hidden;position:relative;
+  }
+  /* พื้นหลังไล่สีเคลื่อนไหว + แสงเรือง */
+  body::before{content:'';position:fixed;inset:0;z-index:-2;
+    background:
+      radial-gradient(900px 600px at 15% 0%,rgba(49,200,255,.14),transparent 60%),
+      radial-gradient(1000px 700px at 90% 20%,rgba(90,255,214,.10),transparent 60%),
+      linear-gradient(160deg,#03111f 0%,#061d33 50%,#03111f 100%);
+    background-size:200% 200%;animation:drift 18s ease-in-out infinite;}
+  @keyframes drift{0%,100%{background-position:0% 0%}50%{background-position:100% 100%}}
+  .wrap{max-width:1240px;margin:0 auto;padding:24px}
+
+  /* ---------- Header ---------- */
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:14px}
+  .brand .logo{font-size:38px;filter:drop-shadow(0 4px 12px rgba(49,200,255,.5));animation:bob 4s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-6px) rotate(3deg)}}
+  .brand h1{font-size:22px;font-weight:700;letter-spacing:.3px}
+  .brand p{font-size:12px;color:var(--muted);margin-top:2px}
+  .status-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:8px;background:var(--glass);backdrop-filter:blur(10px);
+    border:1px solid var(--glass-brd);border-radius:999px;padding:8px 15px;font-size:13px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(12,163,12,.7);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(12,163,12,.6)}70%{box-shadow:0 0 0 9px rgba(12,163,12,0)}100%{box-shadow:0 0 0 0 rgba(12,163,12,0)}}
+
+  /* ---------- การ์ดกระจก (glassmorphism) ---------- */
+  .glass{background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid var(--glass-brd);border-radius:20px;box-shadow:0 12px 40px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.06)}
+
+  /* ---------- AI Insight Bar ---------- */
+  .ai-bar{padding:18px 22px;margin-bottom:22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
+  .ai-bar::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+    background:linear-gradient(90deg,transparent,rgba(90,255,214,.10),transparent);animation:shimmer 5s infinite}
+  @keyframes shimmer{0%{left:-60%}60%,100%{left:130%}}
+  .ai-badge{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;white-space:nowrap}
+  .ai-badge .spark{font-size:22px;animation:bob 3s ease-in-out infinite}
+  .ai-text{flex:1;min-width:240px;font-size:14.5px;line-height:1.55;color:#dcefff}
+  .ai-text b{color:var(--accent2)}
+  .wqi-chip{display:flex;flex-direction:column;align-items:center;min-width:92px}
+  .wqi-chip .num{font-size:30px;font-weight:800;line-height:1}
+  .wqi-chip .lbl{font-size:11px;color:var(--muted);margin-top:3px}
+
+  /* ---------- Grid การ์ดค่า ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:16px;margin-bottom:22px}
+  .card{padding:18px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:rise .5s both}
+  .card:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(0,0,0,.45),0 0 0 1px var(--glass-brd),0 0 24px rgba(49,200,255,.18)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .card .accent{position:absolute;top:0;left:0;width:4px;height:100%;border-radius:4px 0 0 4px}
+  .card .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .card .icon{font-size:24px}
+  .card .name{font-size:15px;font-weight:600}
+  .card .en{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .card .value{font-size:36px;font-weight:800;line-height:1.1;margin-top:6px;font-variant-numeric:tabular-nums}
+  .card .unit{font-size:13px;color:var(--muted);font-weight:500;margin-left:4px}
+  .card .fore{font-size:11.5px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:5px}
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px}
+  .badge.good{background:rgba(12,163,12,.16);color:#4ade4a}
+  .badge.warning{background:rgba(250,178,25,.16);color:var(--warning)}
+  .badge.serious{background:rgba(236,131,90,.16);color:var(--serious)}
+  .badge.critical{background:rgba(208,59,59,.18);color:#ff7a7a}
+  .spark{margin-top:12px;width:100%;height:36px;display:block}
+
+  /* ---------- Panel 2 คอลัมน์ (WQI + พยากรณ์) ---------- */
+  .analysis{display:grid;grid-template-columns:320px 1fr;gap:16px;margin-bottom:22px}
+  @media(max-width:820px){.analysis{grid-template-columns:1fr}}
+  .panel{padding:20px}
+  .panel h2{font-size:15px;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+  .panel .sub{font-size:11.5px;color:var(--muted);margin-bottom:16px}
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center}
+  .gauge-num{font-size:44px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:-88px;margin-bottom:44px}
+  .gauge-cat{font-size:14px;font-weight:700;margin-top:6px}
+  .contrib{width:100%;margin-top:14px;display:flex;flex-direction:column;gap:7px}
+  .contrib .row{display:flex;align-items:center;gap:8px;font-size:12px}
+  .contrib .bar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,.08);overflow:hidden}
+  .contrib .bar i{display:block;height:100%;border-radius:4px;transition:width .6s}
+  .contrib .pv{width:34px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .feed{display:flex;flex-direction:column;gap:10px;max-height:340px;overflow-y:auto}
+  .fitem{display:flex;gap:11px;padding:11px 13px;border-radius:13px;background:rgba(255,255,255,.04);
+    border-left:3px solid var(--muted);animation:rise .4s both}
+  .fitem.good{border-color:var(--good)} .fitem.warning{border-color:var(--warning)}
+  .fitem.serious{border-color:var(--serious)} .fitem.critical{border-color:var(--critical)}
+  .fitem .fi{font-size:18px}
+  .fitem .ft{font-size:13px;line-height:1.5}
+  .fitem .ft b{color:var(--accent2)}
+  .fitem .fm{font-size:10.5px;color:var(--muted);margin-top:2px}
+
+  /* ---------- History module ---------- */
+  .chart-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:6px}
+  .tab{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--glass-brd);
+    background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
+  .tab.active{background:var(--accent);color:#04263a;border-color:var(--accent);font-weight:700}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0}
+  .ranges{display:flex;gap:6px}
+  .rbtn{font-size:11.5px;padding:5px 11px;border-radius:8px;border:1px solid var(--glass-brd);background:transparent;color:var(--muted);cursor:pointer}
+  .rbtn.active{background:rgba(49,200,255,.16);color:var(--accent);border-color:var(--accent)}
+  .obtn{font-size:11.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--glass-brd);background:transparent;color:var(--text);cursor:pointer}
+  .obtn:hover{background:rgba(255,255,255,.06)}
+  #chart{width:100%;height:280px;display:block}
+  .tblwrap{max-height:280px;overflow:auto;margin-top:8px;display:none}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:7px 9px;text-align:right;font-variant-numeric:tabular-nums;border-bottom:1px solid rgba(255,255,255,.06)}
+  th{position:sticky;top:0;background:#0e2f4d;color:var(--muted);text-align:right;font-weight:600}
+  th:first-child,td:first-child{text-align:left}
+
+  /* ---------- Map ---------- */
+  .map-wrap{display:grid;grid-template-columns:1fr 260px;gap:16px;margin-bottom:22px}
+  @media(max-width:820px){.map-wrap{grid-template-columns:1fr}}
+  #radar{width:100%;height:230px;display:block}
+  .coords{display:flex;flex-direction:column;justify-content:center;gap:12px}
+  .coords .kv{font-size:13px}.coords .kv b{color:var(--accent2);font-size:17px}
+
+  footer{text-align:center;color:var(--muted);font-size:11.5px;margin-top:10px;line-height:1.7}
+  .wave{position:fixed;bottom:0;left:0;width:100%;height:70px;z-index:-1;opacity:.5}
+  ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:rgba(120,200,255,.25);border-radius:8px}
+</style>
+</head>
+<body>
+<svg class="wave" viewBox="0 0 1440 80" preserveAspectRatio="none"><path fill="#0a3a5f">
+  <animate attributeName="d" dur="8s" repeatCount="indefinite"
+    values="M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z;M0,40 C360,0 1080,80 1440,40 L1440,80 L0,80 Z;M0,40 C360,80 1080,0 1440,40 L1440,80 L0,80 Z"/>
+</path></svg>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo">🌊</div>
+      <div>
+        <h1>ทุ่นตรวจคุณภาพน้ำทะเล</h1>
+        <p>AI-Powered Realtime Marine Water Quality Monitoring</p>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span class="pill"><span class="dot"></span> ออนไลน์</span>
+      <span class="pill">📍 <span id="loc">สถานี buoy-01</span></span>
+      <span class="pill">🕒 <span id="clock">--:--:--</span></span>
+    </div>
+  </header>
+
+  <!-- AI Insight Bar -->
+  <div class="glass ai-bar">
+    <div class="ai-badge"><span class="spark">🤖</span><span>AI วิเคราะห์</span></div>
+    <div class="ai-text" id="ai-text">กำลังประมวลผล…</div>
+    <div class="wqi-chip"><span class="num" id="wqi-mini">--</span><span class="lbl">WQI</span></div>
+  </div>
+
+  <!-- การ์ดค่า 7 ตัว -->
+  <div class="grid" id="cards"></div>
+
+  <!-- AI Analysis: WQI + พยากรณ์/แจ้งเตือน -->
+  <div class="analysis">
+    <div class="glass panel">
+      <h2>💧 ดัชนีคุณภาพน้ำ (WQI)</h2>
+      <div class="sub">คะแนนรวมสุขภาพน้ำ 0–100</div>
+      <div class="gauge-wrap">
+        <svg id="gauge" viewBox="0 0 220 130" width="100%" style="max-width:260px"></svg>
+        <div class="gauge-num" id="wqi-num">--</div>
+        <div class="gauge-cat" id="wqi-cat">—</div>
+      </div>
+      <div class="contrib" id="contrib"></div>
+    </div>
+    <div class="glass panel">
+      <h2>🔮 พยากรณ์ &amp; แจ้งเตือน (AI)</h2>
+      <div class="sub">วิเคราะห์แนวโน้มและความผิดปกติแบบเรียลไทม์ — ช่วยเฝ้าระวังแทนคน</div>
+      <div class="feed" id="feed"></div>
+    </div>
+  </div>
+
+  <!-- History module -->
+  <div class="glass panel" style="margin-bottom:22px">
+    <h2>📈 ประวัติย้อนหลัง</h2>
+    <div class="sub">แนวโน้มค่าที่วัดได้</div>
+    <div class="chart-tabs" id="tabs"></div>
+    <div class="toolbar">
+      <div class="ranges" id="ranges"></div>
+      <div style="display:flex;gap:7px">
+        <button class="obtn" id="toggleTbl">📋 ตาราง</button>
+        <button class="obtn" id="exportCsv">⬇️ CSV</button>
+      </div>
+    </div>
+    <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
+    <div class="tblwrap" id="tblwrap"></div>
+  </div>
+
+  <!-- Map / ตำแหน่งทุ่น -->
+  <div class="map-wrap">
+    <div class="glass panel">
+      <h2>🛰️ ตำแหน่งทุ่น</h2>
+      <div class="sub">พิกัดและสถานะการเชื่อมต่อ</div>
+      <svg id="radar" viewBox="0 0 400 230"></svg>
+    </div>
+    <div class="glass panel coords">
+      <div class="kv">ละติจูด<br><b id="lat">7.8804° N</b></div>
+      <div class="kv">ลองจิจูด<br><b id="lon">98.3923° E</b></div>
+      <div class="kv">สัญญาณ 4G<br><b id="sig">▂▄▆█ ดี</b></div>
+    </div>
+  </div>
+
+  <footer>
+    โปรเจคจบ · ข้อมูลตอนนี้เป็น <b>Mock Data</b> — เปลี่ยนเป็น Firebase/Server ได้ที่ <code>CONFIG.mode</code><br>
+    AI Engine ทำงานในเบราว์เซอร์ (พยากรณ์ = linear regression · ผิดปกติ = z-score · WQI = ดัชนีถ่วงน้ำหนัก)
+  </footer>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG — สลับแหล่งข้อมูลตรงนี้จุดเดียว (แก้ค่า mode)
+   'mock' = ค่าปลอมเดโม | 'firebase' = แผนหลัก | 'server' = แผนสำรอง
+   ดูวิธีสลับละเอียดที่ SWITCHING-GUIDE.md
+   ========================================================================= */
+const CONFIG = {
+  mode: 'mock',
+  device: 'buoy-01',
+  firebase: {
+    apiKey:      "ใส่_API_KEY",
+    authDomain:  "ใส่_PROJECT_ID.firebaseapp.com",
+    databaseURL: "https://ใส่_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:   "ใส่_PROJECT_ID",
+  },
+  apiBase: 'https://server-อาจารย์.ac.th/buoy/api',
+};
+
+/* สมมติในการใช้งานจริงเก็บข้อมูลทุกกี่นาที (ใช้แปลงคำพยากรณ์เป็น "นาที") */
+const SAMPLE_MIN = 5;
+
+/* =========================================================================
+   นิยาม 7 พารามิเตอร์
+   ideal:[lo,hi] = ช่วงที่ดี | range:[min,max] = ช่วงกายภาพ (ใช้จำลอง+คิดคะแนน)
+   w = น้ำหนักใน WQI | color = สี categorical (ตรวจแล้ว)
+   ========================================================================= */
+const PARAMS = [
+  { key:'do',   th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L', icon:'🫧', color:'var(--c-do)',   ideal:[5,8],    range:[3,10],   w:.20 },
+  { key:'sal',  th:'ความเค็ม',        en:'Salinity',          unit:'ppt', icon:'🧂', color:'var(--c-sal)',  ideal:[30,34],  range:[26,36],  w:.10 },
+  { key:'turb', th:'ความขุ่น',        en:'Turbidity',         unit:'NTU', icon:'🌫️', color:'var(--c-turb)', ideal:[0,10],   range:[0,30],   w:.15 },
+  { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',     unit:'µg/L',icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],    range:[0,15],   w:.15 },
+  { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',  icon:'⚡', color:'var(--c-orp)',  ideal:[200,350],range:[100,450],w:.10 },
+  { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppb', icon:'🛢️', color:'var(--c-oil)',  ideal:[0,10],   range:[0,30],   w:.15 },
+  { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'µg/L',icon:'🦠', color:'var(--c-algae)',ideal:[0,6],    range:[0,16],   w:.15 },
+];
+
+const HISTORY_LEN = 120;
+const history = {}, times = [];
+PARAMS.forEach(p => history[p.key] = []);
+let activeTab = PARAMS[0].key, rangeN = 60, showTable = false;
+const displayVal = {};   // ค่าที่กำลังแสดง (ไว้ทำอนิเมชันนับ)
+
+/* ---------- AI: คะแนนย่อยรายพารามิเตอร์ (0–100) + สถานะ ---------- */
+function subIndex(p, v){
+  const [lo,hi] = p.ideal, [mn,mx] = p.range;
+  if (v >= lo && v <= hi) return 100;
+  let dist, span;
+  if (v < lo){ dist = lo - v; span = lo - mn; }
+  else       { dist = v - hi; span = mx - hi; }
+  return Math.max(0, Math.round(100 * (1 - dist / (span||1))));
+}
+function statusOf(si){
+  if (si >= 75) return {cls:'good',    txt:'ปกติ',      icon:'✓'};
+  if (si >= 50) return {cls:'warning', txt:'เฝ้าระวัง',  icon:'!'};
+  if (si >= 25) return {cls:'serious', txt:'เริ่มผิดปกติ',icon:'▲'};
+  return             {cls:'critical', txt:'วิกฤต',      icon:'✕'};
+}
+
+/* ---------- AI: linear regression พยากรณ์แนวโน้ม ---------- */
+function forecast(key){
+  const d = history[key]; const n = Math.min(d.length, 20);
+  if (n < 5) return null;
+  const s = d.slice(-n);
+  let sx=0,sy=0,sxy=0,sxx=0;
+  s.forEach((y,i)=>{ sx+=i; sy+=y; sxy+=i*y; sxx+=i*i; });
+  const slope = (n*sxy - sx*sy) / (n*sxx - sx*sx || 1);
+  const cur = s[n-1];
+  const next = cur + slope * 3;                 // ทำนายอีก 3 รอบข้างหน้า
+  return { slope, cur, next };
+}
+/* ประเมินว่าเข้าใกล้ขอบเขตอันตรายในอีกกี่รอบ */
+function timeToRisk(p){
+  const f = forecast(p.key); if (!f || Math.abs(f.slope) < 1e-4) return null;
+  const [lo,hi] = p.ideal;
+  let target = null;
+  if (f.slope > 0 && f.cur <= hi) target = hi;   // กำลังขึ้นไปหาขอบบน
+  if (f.slope < 0 && f.cur >= lo) target = lo;   // กำลังลงไปหาขอบล่าง
+  if (target === null) return null;
+  const steps = (target - f.cur) / f.slope;
+  if (steps <= 0 || steps > 40) return null;
+  return { mins: Math.round(steps * SAMPLE_MIN), target, dir: f.slope>0?'สูงเกิน':'ต่ำกว่า' };
+}
+/* ---------- AI: z-score ตรวจความผิดปกติ ---------- */
+function anomaly(key){
+  const d = history[key]; if (d.length < 12) return null;
+  const w = d.slice(-12, -1);
+  const mean = w.reduce((a,b)=>a+b,0)/w.length;
+  const sd = Math.sqrt(w.reduce((a,b)=>a+(b-mean)**2,0)/w.length) || 1;
+  const z = (d[d.length-1]-mean)/sd;
+  return Math.abs(z) >= 2.2 ? z : null;
+}
+/* ---------- AI: WQI รวม + หมวด ---------- */
+function computeWQI(){
+  let sum=0, wsum=0; const parts={};
+  PARAMS.forEach(p=>{
+    const v = history[p.key].at(-1); if (v==null) return;
+    const si = subIndex(p,v); parts[p.key]=si; sum+=si*p.w; wsum+=p.w;
+  });
+  const wqi = wsum? Math.round(sum/wsum) : 0;
+  let cat,cls;
+  if (wqi>=80){cat='ดีเยี่ยม';cls='good'} else if(wqi>=60){cat='ดี';cls='good'}
+  else if(wqi>=40){cat='ปานกลาง';cls='warning'} else if(wqi>=20){cat='แย่';cls='serious'}
+  else {cat='วิกฤต';cls='critical'}
+  return {wqi,cat,cls,parts};
+}
+
+/* ---------- AI: สร้างประโยคสรุปภาษาไทย ---------- */
+function buildInsight(wqiObj){
+  const worst = PARAMS.map(p=>({p,si:wqiObj.parts[p.key]??100})).sort((a,b)=>a.si-b.si)[0];
+  const risks = PARAMS.map(p=>({p,r:timeToRisk(p)})).filter(x=>x.r);
+  let msg = `คุณภาพน้ำโดยรวมอยู่ระดับ <b>${wqiObj.cat}</b> (WQI ${wqiObj.wqi}). `;
+  if (worst.si < 75) msg += `ค่าที่ควรจับตาคือ <b>${worst.p.th}</b>. `;
+  else msg += `ทุกค่าอยู่ในเกณฑ์ดี. `;
+  if (risks.length){
+    const r = risks.sort((a,b)=>a.r.mins-b.r.mins)[0];
+    msg += `คาดว่า <b>${r.p.th}</b> จะ${r.r.dir}เกณฑ์ในอีก ~${r.r.mins} นาที ควรเตรียมรับมือ.`;
+  } else if (worst.si >= 75){
+    msg += `ไม่พบแนวโน้มผิดปกติในระยะสั้น.`;
+  }
+  return msg;
+}
+
+/* =========================================================================
+   แหล่งข้อมูล (mock / firebase / server)
+   ========================================================================= */
+let fbLatest = {};
+function initSource(){
+  if (CONFIG.mode === 'firebase'){
+    firebase.initializeApp(CONFIG.firebase);
+    firebase.database().ref(`${CONFIG.device}/latest`).on('value', s=>{
+      const v=s.val(); if(v) fbLatest=v;
+      document.getElementById('loc').textContent = CONFIG.device+' (Firebase)';
+    }, e=>console.warn('Firebase error:',e));
+  }
+}
+/* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ AI มีอะไรให้วิเคราะห์ตอนเดโม */
+const mockState = {};
+PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0});
+async function fetchData(){
+  if (CONFIG.mode==='firebase'){ const o={}; PARAMS.forEach(p=>{if(fbLatest[p.key]!=null)o[p.key]=Number(fbLatest[p.key])}); return o; }
+  if (CONFIG.mode==='server'){
+    try{ const r=await fetch(`${CONFIG.apiBase}/latest.php?device=${CONFIG.device}`); const j=await r.json();
+      const o={}; PARAMS.forEach(p=>{if(j[p.key]!=null)o[p.key]=j[p.key]}); return o;
+    }catch(e){ console.warn('server error',e); return {}; }
+  }
+  const o={};
+  PARAMS.forEach(p=>{
+    const st=mockState[p.key], sp=(p.range[1]-p.range[0]);
+    if(st.driftT<=0 && Math.random()<0.015){ st.drift=(Math.random()-0.45)*sp*0.02; st.driftT=15+Math.random()*25; }
+    if(st.driftT>0){ st.v+=st.drift; st.driftT--; }
+    st.v += (Math.random()-0.5)*sp*0.03;
+    const mid=(p.ideal[0]+p.ideal[1])/2; st.v += (mid-st.v)*0.01;   // ดึงกลับเบาๆ
+    st.v = Math.max(p.range[0], Math.min(p.range[1], st.v));
+    o[p.key]=st.v;
+  });
+  return o;
+}
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function buildCards(){
+  document.getElementById('cards').innerHTML = PARAMS.map((p,i)=>`
+    <div class="glass card" style="animation-delay:${i*60}ms">
+      <span class="accent" style="background:${p.color}"></span>
+      <div class="top"><span class="icon">${p.icon}</span><span class="badge good" id="badge-${p.key}">—</span></div>
+      <div class="name">${p.th}</div><div class="en">${p.en}</div>
+      <div><span class="value" id="val-${p.key}">--</span><span class="unit">${p.unit}</span></div>
+      <div class="fore" id="fore-${p.key}"></div>
+      <svg class="spark" id="spark-${p.key}" viewBox="0 0 200 36" preserveAspectRatio="none"></svg>
+    </div>`).join('');
+  document.getElementById('tabs').innerHTML = PARAMS.map(p=>
+    `<button class="tab ${p.key===activeTab?'active':''}" data-k="${p.key}">${p.th}</button>`).join('');
+  document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{activeTab=t.dataset.k;
+    document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.toggle('active',x.dataset.k===activeTab));drawChart();renderTable();});
+  document.getElementById('ranges').innerHTML = [[30,'ล่าสุด'],[60,'กลาง'],[120,'ทั้งหมด']]
+    .map(([n,l])=>`<button class="rbtn ${n===rangeN?'active':''}" data-n="${n}">${l}</button>`).join('');
+  document.querySelectorAll('#ranges .rbtn').forEach(b=>b.onclick=()=>{rangeN=+b.dataset.n;
+    document.querySelectorAll('#ranges .rbtn').forEach(x=>x.classList.toggle('active',+x.dataset.n===rangeN));drawChart();renderTable();});
+  document.getElementById('toggleTbl').onclick=()=>{showTable=!showTable;
+    document.getElementById('tblwrap').style.display=showTable?'block':'none';
+    document.getElementById('chart').style.display=showTable?'none':'block';renderTable();};
+  document.getElementById('exportCsv').onclick=exportCSV;
+  drawRadar();
+}
+
+/* อนิเมชันนับตัวเลข */
+function animateVal(key, to, dec){
+  const el=document.getElementById('val-'+key); const from=displayVal[key]??to; const t0=performance.now();
+  function step(t){ const k=Math.min(1,(t-t0)/500); const v=from+(to-from)*(k<.5?2*k*k:1-((-2*k+2)**2)/2);
+    el.textContent=v.toFixed(dec); if(k<1)requestAnimationFrame(step); else displayVal[key]=to; }
+  requestAnimationFrame(step);
+}
+function drawSpark(p){
+  const d=history[p.key]; if(d.length<2)return; const w=200,h=36,mn=Math.min(...d),mx=Math.max(...d),r=(mx-mn)||1;
+  const pts=d.map((v,i)=>`${(i/(d.length-1)*w).toFixed(1)},${(h-((v-mn)/r)*(h-6)-3).toFixed(1)}`).join(' ');
+  document.getElementById('spark-'+p.key).innerHTML=
+    `<polyline fill="none" stroke="${p.color}" stroke-width="2" points="${pts}"/>`;
+}
+
+function drawChart(){
+  const p=PARAMS.find(x=>x.key===activeTab); const all=history[p.key]; const d=all.slice(-rangeN);
+  const svg=document.getElementById('chart'), W=820,H=280,pad=38;
+  if(d.length<2){svg.innerHTML='';return;}
+  const mn=Math.min(...d),mx=Math.max(...d),r=(mx-mn)||1;
+  const X=i=>pad+i/(d.length-1)*(W-pad*2), Y=v=>H-pad-((v-mn)/r)*(H-pad*2);
+  const line=d.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const area=`${pad},${H-pad} ${line} ${W-pad},${H-pad}`;
+  let grid='';
+  for(let g=0;g<=4;g++){const y=pad+g/4*(H-pad*2);const val=(mx-g/4*r);
+    grid+=`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="rgba(255,255,255,.07)"/>
+           <text x="6" y="${y+4}" fill="#8fb3cf" font-size="11">${val.toFixed(1)}</text>`;}
+  // แถบช่วง ideal (โซนสีเขียวจางๆ)
+  let ideal=''; const [ilo,ihi]=p.ideal;
+  if(ihi>=mn&&ilo<=mx){const yTop=Y(Math.min(ihi,mx)),yBot=Y(Math.max(ilo,mn));
+    ideal=`<rect x="${pad}" y="${yTop}" width="${W-pad*2}" height="${Math.max(0,yBot-yTop)}" fill="rgba(12,163,12,.10)"/>`;}
+  svg.innerHTML=`<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${p.color}" stop-opacity=".35"/><stop offset="100%" stop-color="${p.color}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}${ideal}<polygon points="${area}" fill="url(#fill)"/>
+    <polyline points="${line}" fill="none" stroke="${p.color}" stroke-width="2.5"/>
+    <circle cx="${X(d.length-1)}" cy="${Y(d.at(-1))}" r="4" fill="${p.color}"/>
+    <text x="${W-pad}" y="20" fill="#eaf6ff" font-size="13" text-anchor="end">${p.th} (${p.unit}) · แถบเขียว = ช่วงที่ดี</text>`;
+}
+
+/* เกจ WQI ครึ่งวงกลม (semicircle) พร้อมส่วนโค้งไล่ระดับ */
+const STATUS_HEX={good:'#0ca30c',warning:'#fab219',serious:'#ec835a',critical:'#d03b3b'};
+function polar(cx,cy,R,deg){const a=(deg-180)*Math.PI/180;return[cx+R*Math.cos(a),cy+R*Math.sin(a)];}
+function arcPath(cx,cy,R,d0,d1){const[x0,y0]=polar(cx,cy,R,d0),[x1,y1]=polar(cx,cy,R,d1);
+  const large=(d1-d0)>180?1:0;return`M${x0.toFixed(1)},${y0.toFixed(1)} A${R},${R} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`;}
+function drawGauge(wqi,cls){
+  const svg=document.getElementById('gauge'),cx=110,cy=112,R=86;
+  const end=180*(wqi/100);
+  svg.innerHTML=`
+    <path d="${arcPath(cx,cy,R,0,180)}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="16" stroke-linecap="round"/>
+    <path d="${arcPath(cx,cy,R,0,Math.max(0.1,end))}" fill="none" stroke="${STATUS_HEX[cls]}" stroke-width="16" stroke-linecap="round"
+      style="transition:stroke .4s;filter:drop-shadow(0 0 8px ${STATUS_HEX[cls]}88)"/>
+    <circle cx="${polar(cx,cy,R,end)[0]}" cy="${polar(cx,cy,R,end)[1]}" r="7" fill="#fff" style="filter:drop-shadow(0 0 6px ${STATUS_HEX[cls]})"/>`;
+}
+function drawContrib(parts){
+  document.getElementById('contrib').innerHTML=PARAMS.map(p=>{
+    const si=parts[p.key]??0;
+    return `<div class="row"><span style="width:96px;color:#dcefff">${p.th}</span>
+      <div class="bar"><i style="width:${si}%;background:${p.color}"></i></div>
+      <span class="pv">${si}</span></div>`;}).join('');
+}
+
+/* ฟีดพยากรณ์ + ความผิดปกติ */
+function renderFeed(wqiObj){
+  const items=[];
+  PARAMS.forEach(p=>{
+    const z=anomaly(p.key);
+    if(z!=null) items.push({cls:'serious',icon:'⚠️',
+      t:`<b>${p.th}</b> ค่าเปลี่ยนผิดปกติ (${z>0?'พุ่งสูง':'ตกวูบ'} ${Math.abs(z).toFixed(1)}σ)`,
+      m:'ตรวจพบโดย z-score · ควรตรวจสอบ sensor/สภาพน้ำ'});
+    const r=timeToRisk(p);
+    if(r) items.push({cls:'warning',icon:'🔮',
+      t:`คาดว่า <b>${p.th}</b> จะ${r.dir}เกณฑ์ในอีก ~${r.mins} นาที`,
+      m:'พยากรณ์จากแนวโน้ม (linear regression)'});
+  });
+  if(!items.length) items.push({cls:'good',icon:'✅',t:'ทุกค่าอยู่ในเกณฑ์ปกติ ไม่พบแนวโน้มผิดปกติ',m:'AI เฝ้าระวังอยู่'});
+  document.getElementById('feed').innerHTML=items.slice(0,8).map(it=>
+    `<div class="fitem ${it.cls}"><span class="fi">${it.icon}</span><div><div class="ft">${it.t}</div><div class="fm">${it.m}</div></div></div>`).join('');
+}
+
+/* ตารางประวัติ */
+function renderTable(){
+  if(!showTable)return;
+  const d=times.slice(-rangeN);
+  const rows=d.map((t,idx)=>{
+    const i=times.length-d.length+idx;
+    return `<tr><td>${t}</td>${PARAMS.map(p=>`<td>${(history[p.key][i]??0).toFixed(1)}</td>`).join('')}</tr>`;
+  }).reverse().join('');
+  document.getElementById('tblwrap').innerHTML=
+    `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+function exportCSV(){
+  let csv='เวลา,'+PARAMS.map(p=>p.en).join(',')+'\n';
+  times.forEach((t,i)=>{csv+=t+','+PARAMS.map(p=>(history[p.key][i]??'').toString()).join(',')+'\n';});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download='buoy-history.csv';a.click();
+}
+
+/* เรดาร์ตำแหน่งทุ่น (กวาดวน) */
+function drawRadar(){
+  const svg=document.getElementById('radar');
+  svg.innerHTML=`
+    <defs><radialGradient id="rg"><stop offset="0%" stop-color="rgba(49,200,255,.25)"/><stop offset="100%" stop-color="transparent"/></radialGradient></defs>
+    ${[50,90,130].map(r=>`<circle cx="200" cy="115" r="${r}" fill="none" stroke="rgba(120,200,255,.18)"/>`).join('')}
+    <line x1="60" y1="115" x2="340" y2="115" stroke="rgba(120,200,255,.12)"/>
+    <line x1="200" y1="15" x2="200" y2="215" stroke="rgba(120,200,255,.12)"/>
+    <circle cx="200" cy="115" r="130" fill="url(#rg)"/>
+    <g><path d="M200,115 L200,-15 A130,130 0 0 1 313,50 Z" fill="rgba(90,255,214,.14)">
+      <animateTransform attributeName="transform" type="rotate" from="0 200 115" to="360 200 115" dur="4s" repeatCount="indefinite"/></path></g>
+    <circle cx="200" cy="115" r="7" fill="#5affd6"><animate attributeName="r" values="7;11;7" dur="2s" repeatCount="indefinite"/></circle>
+    <text x="200" y="145" fill="#eaf6ff" font-size="12" text-anchor="middle">🌊 ${CONFIG.device}</text>`;
+}
+
+/* =========================================================================
+   ลูปอัปเดตหลัก
+   ========================================================================= */
+async function tick(){
+  const data=await fetchData();
+  const stamp=new Date().toLocaleTimeString('th-TH');
+  times.push(stamp); if(times.length>HISTORY_LEN)times.shift();
+  PARAMS.forEach(p=>{
+    let v=data[p.key];
+    if(v==null||isNaN(v)){ if(!history[p.key].length)return; v=history[p.key].at(-1); }
+    history[p.key].push(v); if(history[p.key].length>HISTORY_LEN)history[p.key].shift();
+    const si=subIndex(p,v), st=statusOf(si);
+    const dec=(p.unit==='mV')?0:(v<10?2:1);
+    animateVal(p.key,v,dec);
+    const b=document.getElementById('badge-'+p.key); b.className='badge '+st.cls;
+    b.innerHTML=`<span>${st.icon}</span>${st.txt}`;
+    const f=forecast(p.key);
+    const arrow=!f?'':f.slope>0.01?'↗ กำลังขึ้น':f.slope<-0.01?'↘ กำลังลง':'→ คงที่';
+    document.getElementById('fore-'+p.key).textContent=arrow;
+    drawSpark(p);
+  });
+  const wqiObj=computeWQI();
+  drawGauge(wqiObj.wqi,wqiObj.cls);
+  document.getElementById('wqi-num').textContent=wqiObj.wqi;
+  document.getElementById('wqi-mini').textContent=wqiObj.wqi;
+  document.getElementById('wqi-mini').style.color=STATUS_HEX[wqiObj.cls];
+  const catEl=document.getElementById('wqi-cat'); catEl.textContent=wqiObj.cat; catEl.style.color=STATUS_HEX[wqiObj.cls];
+  drawContrib(wqiObj.parts);
+  document.getElementById('ai-text').innerHTML=buildInsight(wqiObj);
+  renderFeed(wqiObj);
+  drawChart(); renderTable();
+  document.getElementById('clock').textContent=stamp;
+}
+
+buildCards();
+initSource();
+tick();
+setInterval(tick,2000);
+</script>
+</body>
+</html>

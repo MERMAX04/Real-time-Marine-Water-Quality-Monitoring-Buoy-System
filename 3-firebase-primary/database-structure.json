@@ -1,0 +1,24 @@
+{
+  "_comment": "โครงสร้างข้อมูลใน Firebase Realtime Database — ใช้ดูเป็นแบบ ไม่ต้อง import",
+  "_comment2": "Dashboard ฟังที่ path 'buoy-01/latest' ส่วน 'history' ไว้เก็บย้อนหลัง",
+
+  "buoy-01": {
+    "latest": {
+      "do": 6.2,
+      "sal": 32.1,
+      "turb": 8.0,
+      "chl": 3.4,
+      "orp": 280,
+      "oil": 5.0,
+      "algae": 2.1,
+      "ts": "2026-07-05T12:00:00"
+    },
+    "history": {
+      "_comment": "ESP32 push() เพิ่มทีละ record คีย์เป็น auto-id",
+      "-Nxxxxxxxx": {
+        "do": 6.1, "sal": 32.0, "turb": 8.2, "chl": 3.3,
+        "orp": 279, "oil": 5.1, "algae": 2.0, "ts": "2026-07-05T11:59:50"
+      }
+    }
+  }
+}
