@@ -20,3 +20,6 @@ __pycache__/
 # ถ้าอยากเก็บคู่มือใน repo ด้วย ให้ลบ 2 บรรทัดนี้ออก
 Guide files/*.pdf
 Guide files/_sensor_text.txt
+
+# ===== รูปปลาต้นฉบับ (ใช้ก๊อปที่ 2-dashboard/fish/ แทน) =====
+/PNG/
