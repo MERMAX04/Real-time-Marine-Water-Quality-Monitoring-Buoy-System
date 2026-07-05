@@ -67,21 +67,26 @@
   /* ===== ฝูงปลาว่ายในน้ำ (อยู่เหนือ scrim ให้เห็นชัด แต่ใต้ content) ===== */
   .school{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .fish{position:absolute;left:0;will-change:transform;filter:drop-shadow(0 0 10px rgba(120,200,255,.45))}
-  .fish svg{display:block;width:1.7em;height:1em}
-  .fish i{display:block;font-style:normal;animation:finbob 3s ease-in-out infinite}
-  @keyframes finbob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+  .fish svg{display:block;height:1em;width:auto}
+  /* i = ส่ายขึ้น-ลง (wander) คนละความสูง/จังหวะ ตาม --amp/--wd/--wdl ของแต่ละตัว */
+  .fish i{display:block;font-style:normal;animation:wander var(--wd,3s) ease-in-out infinite;animation-delay:var(--wdl,0s)}
+  @keyframes wander{0%,100%{transform:translateY(calc(var(--amp,14px)*-1)) rotate(-6deg)}
+                    50%{transform:translateY(var(--amp,14px)) rotate(6deg)}}
   @keyframes swimL{from{transform:translateX(112vw)}to{transform:translateX(-16vw)}}
   @keyframes swimR{from{transform:translateX(-16vw) scaleX(-1)}to{transform:translateX(112vw) scaleX(-1)}}
-  .f1{top:5%;font-size:36px;opacity:.9;animation:swimL 30s linear infinite}
-  .f2{top:12%;font-size:26px;opacity:.8;animation:swimR 46s linear infinite;animation-delay:-6s}
-  .f3{top:22%;font-size:32px;opacity:.85;animation:swimL 38s linear infinite;animation-delay:-14s}
-  .f4{top:34%;font-size:28px;opacity:.8;animation:swimR 50s linear infinite;animation-delay:-20s}
-  .f5{top:44%;font-size:24px;opacity:.78;animation:swimL 42s linear infinite;animation-delay:-4s}
-  .f6{top:55%;font-size:34px;opacity:.85;animation:swimR 34s linear infinite;animation-delay:-24s}
-  .f7{top:64%;font-size:22px;opacity:.78;animation:swimL 55s linear infinite;animation-delay:-30s}
-  .f8{top:74%;font-size:30px;opacity:.82;animation:swimR 40s linear infinite;animation-delay:-10s}
-  .f9{top:84%;font-size:26px;opacity:.8;animation:swimL 36s linear infinite;animation-delay:-18s}
-  .f10{top:92%;font-size:38px;opacity:.9;animation:swimR 44s linear infinite;animation-delay:-2s}
+  /* สีปลาหลายแบบ (รูป SVG ใช้ currentColor) */
+  .c-orange{color:#f0912a}.c-gold{color:#e8bf3a}.c-cyan{color:#33c6dc}
+  .c-teal{color:#2fbf95}.c-pink{color:#ee6fa2}.c-red{color:#e8654a}
+  .f1 {top:6%; font-size:34px;opacity:.88;animation:swimL 30s linear infinite;                     --amp:22px;--wd:3.2s}
+  .f2 {top:13%;font-size:24px;opacity:.8; animation:swimR 46s linear infinite;animation-delay:-6s; --amp:12px;--wd:2.6s;--wdl:-1s}
+  .f3 {top:23%;font-size:30px;opacity:.85;animation:swimL 38s linear infinite;animation-delay:-14s;--amp:27px;--wd:3.9s;--wdl:-2s}
+  .f4 {top:35%;font-size:26px;opacity:.8; animation:swimR 50s linear infinite;animation-delay:-20s;--amp:15px;--wd:3.0s;--wdl:-.5s}
+  .f5 {top:45%;font-size:22px;opacity:.78;animation:swimL 42s linear infinite;animation-delay:-4s; --amp:20px;--wd:4.3s;--wdl:-2.5s}
+  .f6 {top:56%;font-size:32px;opacity:.85;animation:swimR 34s linear infinite;animation-delay:-24s;--amp:9px; --wd:2.4s;--wdl:-1.5s}
+  .f7 {top:65%;font-size:20px;opacity:.78;animation:swimL 55s linear infinite;animation-delay:-30s;--amp:24px;--wd:3.5s;--wdl:-3s}
+  .f8 {top:75%;font-size:28px;opacity:.82;animation:swimR 40s linear infinite;animation-delay:-10s;--amp:16px;--wd:2.9s;--wdl:-.8s}
+  .f9 {top:85%;font-size:24px;opacity:.8; animation:swimL 36s linear infinite;animation-delay:-18s;--amp:28px;--wd:4.6s;--wdl:-2s}
+  .f10{top:93%;font-size:36px;opacity:.88;animation:swimR 44s linear infinite;animation-delay:-2s; --amp:13px;--wd:3.1s;--wdl:-1.2s}
   /* (เดิมเคยซ่อนปลา/หยุดอนิเมชันเมื่อระบบตั้ง Reduce Motion — เอาออกเพราะทำให้ปลาหายทั้งหมด) */
 
   .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
@@ -207,23 +212,38 @@
   </path></svg>
 </div>
 <div class="scrim"></div>
-<!-- รูปปลา SVG (นิยามครั้งเดียว ใช้ซ้ำ หันซ้าย) -->
+<!-- รูปปลา SVG 3 ทรง (ใช้ currentColor -> เปลี่ยนสีด้วยคลาส .c-*) หันซ้าย -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#ffbf5a"/><stop offset="1" stop-color="#f0851c"/></linearGradient></defs>
-  <symbol id="fish" viewBox="0 0 72 40">
-    <path d="M54,20 L71,9 L66,20 L71,31 Z" fill="#e8791f"/>
-    <path d="M8,20 C10,9 30,6 44,11 C52,14 58,16.5 56,20 C58,23.5 52,26 44,29 C30,34 10,31 8,20 Z" fill="url(#fg)"/>
-    <path d="M30,11.5 C34,7 40,7 43,10.5" stroke="#ffe0b0" stroke-width="1.6" fill="none" opacity=".8"/>
-    <circle cx="16" cy="17.5" r="2.4" fill="#241100"/>
+  <symbol id="fA" viewBox="0 0 72 40"><!-- ทรงคลาสสิก -->
+    <path d="M54,20 L71,9 L66,20 L71,31 Z" fill="currentColor" opacity=".72"/>
+    <path d="M8,20 C10,9 30,6 44,11 C52,14 58,16.5 56,20 C58,23.5 52,26 44,29 C30,34 10,31 8,20 Z" fill="currentColor"/>
+    <path d="M14,18 C24,13 34,12 44,15 C34,18 24,18 14,20 Z" fill="#fff" opacity=".16"/>
+    <circle cx="16" cy="17.5" r="2.3" fill="#0b0b0b"/>
+  </symbol>
+  <symbol id="fB" viewBox="0 0 82 34"><!-- ทรงเพรียวยาว -->
+    <path d="M62,17 L81,8 L76,17 L81,26 Z" fill="currentColor" opacity=".72"/>
+    <path d="M6,17 C16,7 46,6 62,12 C68,14 70,15.5 68,17 C70,18.5 68,20 62,22 C46,28 16,27 6,17 Z" fill="currentColor"/>
+    <path d="M14,15 C26,11 44,11 56,14 C44,16 26,16 14,17 Z" fill="#fff" opacity=".14"/>
+    <circle cx="14" cy="15.5" r="2" fill="#0b0b0b"/>
+  </symbol>
+  <symbol id="fC" viewBox="0 0 60 44"><!-- ทรงกลมป้อม -->
+    <path d="M46,22 L59,12 L55,22 L59,32 Z" fill="currentColor" opacity=".72"/>
+    <path d="M8,22 C8,10 22,4 34,8 C44,11 50,16 48,22 C50,28 44,33 34,36 C22,40 8,34 8,22 Z" fill="currentColor"/>
+    <path d="M18,11 C26,7 36,8 42,12" stroke="#fff" stroke-width="2.4" fill="none" opacity=".22"/>
+    <circle cx="16" cy="19" r="2.4" fill="#0b0b0b"/>
   </symbol>
 </svg>
 <div class="school">
-  <span class="fish f1"><i><svg><use href="#fish"/></svg></i></span><span class="fish f2"><i><svg><use href="#fish"/></svg></i></span>
-  <span class="fish f3"><i><svg><use href="#fish"/></svg></i></span><span class="fish f4"><i><svg><use href="#fish"/></svg></i></span>
-  <span class="fish f5"><i><svg><use href="#fish"/></svg></i></span><span class="fish f6"><i><svg><use href="#fish"/></svg></i></span>
-  <span class="fish f7"><i><svg><use href="#fish"/></svg></i></span><span class="fish f8"><i><svg><use href="#fish"/></svg></i></span>
-  <span class="fish f9"><i><svg><use href="#fish"/></svg></i></span><span class="fish f10"><i><svg><use href="#fish"/></svg></i></span>
+  <span class="fish f1 c-orange"><i><svg><use href="#fA"/></svg></i></span>
+  <span class="fish f2 c-cyan"><i><svg><use href="#fB"/></svg></i></span>
+  <span class="fish f3 c-pink"><i><svg><use href="#fC"/></svg></i></span>
+  <span class="fish f4 c-gold"><i><svg><use href="#fA"/></svg></i></span>
+  <span class="fish f5 c-teal"><i><svg><use href="#fB"/></svg></i></span>
+  <span class="fish f6 c-orange"><i><svg><use href="#fC"/></svg></i></span>
+  <span class="fish f7 c-cyan"><i><svg><use href="#fA"/></svg></i></span>
+  <span class="fish f8 c-pink"><i><svg><use href="#fB"/></svg></i></span>
+  <span class="fish f9 c-gold"><i><svg><use href="#fC"/></svg></i></span>
+  <span class="fish f10 c-red"><i><svg><use href="#fA"/></svg></i></span>
 </div>
 
 <div class="wrap">
