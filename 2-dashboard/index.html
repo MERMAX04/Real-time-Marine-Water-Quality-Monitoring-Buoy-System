@@ -54,7 +54,31 @@
   .waves{position:fixed;bottom:0;left:0;width:100%;height:170px;z-index:-2;pointer-events:none}
   .waves svg{position:absolute;bottom:0;left:0;width:100%;height:100%}
   .waves .w1{opacity:.5} .waves .w2{opacity:.34}
-  @media(prefers-reduced-motion:reduce){.blob,.brand .logo{animation:none}}
+
+  /* ===== ลำแสงลอดน้ำ (god rays) ===== */
+  .rays{position:fixed;inset:0;z-index:-2;pointer-events:none;mix-blend-mode:screen;
+    background:
+      linear-gradient(102deg, transparent 18%, rgba(150,220,255,.07) 30%, transparent 40%),
+      linear-gradient(102deg, transparent 44%, rgba(150,220,255,.055) 55%, transparent 64%),
+      linear-gradient(102deg, transparent 72%, rgba(150,220,255,.07) 82%, transparent 90%);
+    animation:rayshift 16s ease-in-out infinite}
+  @keyframes rayshift{0%,100%{opacity:.4;transform:translateX(-14px)}50%{opacity:.68;transform:translateX(14px)}}
+
+  /* ===== ฝูงปลาว่ายในน้ำ (อยู่เหนือ scrim ให้เห็นชัด แต่ใต้ content) ===== */
+  .school{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .fish{position:absolute;will-change:transform}
+  .fish i{display:block;font-style:normal;animation:finbob 3s ease-in-out infinite}
+  @keyframes finbob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-8px) rotate(3deg)}}
+  @keyframes swimL{from{transform:translateX(112vw)}to{transform:translateX(-16vw)}}
+  @keyframes swimR{from{transform:translateX(-16vw) scaleX(-1)}to{transform:translateX(112vw) scaleX(-1)}}
+  .f1{top:14%;font-size:28px;opacity:.5;animation:swimL 32s linear infinite}
+  .f2{top:26%;font-size:20px;opacity:.4;animation:swimR 44s linear infinite;animation-delay:-6s}
+  .f3{top:41%;font-size:24px;opacity:.46;animation:swimL 38s linear infinite;animation-delay:-14s}
+  .f4{top:58%;font-size:22px;opacity:.4;animation:swimR 50s linear infinite;animation-delay:-20s}
+  .f5{top:70%;font-size:18px;opacity:.36;animation:swimL 42s linear infinite;animation-delay:-4s}
+  .f6{top:84%;font-size:26px;opacity:.46;animation:swimR 36s linear infinite;animation-delay:-24s}
+  .f7{top:49%;font-size:16px;opacity:.3;animation:swimL 55s linear infinite;animation-delay:-30s}
+  @media(prefers-reduced-motion:reduce){.blob,.brand .logo,.rays,.fish,.fish i{animation:none}.school{display:none}}
 
   .wrap{max-width:1240px;margin:0 auto;padding:24px;position:relative;z-index:1}
 
@@ -165,8 +189,9 @@
 </style>
 </head>
 <body>
-<!-- พื้นหลังทะเลเคลื่อนไหว: aurora blobs + คลื่นซ้อนชั้น + scrim -->
+<!-- พื้นหลังทะเลเคลื่อนไหว: aurora blobs + ลำแสง + ปลา + คลื่น + scrim -->
 <div class="ocean"><span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span></div>
+<div class="rays"></div>
 <div class="waves">
   <svg class="w1" viewBox="0 0 1440 120" preserveAspectRatio="none"><path fill="#0c4a75">
     <animate attributeName="d" dur="11s" repeatCount="indefinite"
@@ -178,6 +203,12 @@
   </path></svg>
 </div>
 <div class="scrim"></div>
+<div class="school">
+  <span class="fish f1"><i>🐠</i></span><span class="fish f2"><i>🐟</i></span>
+  <span class="fish f3"><i>🐠</i></span><span class="fish f4"><i>🐡</i></span>
+  <span class="fish f5"><i>🐠</i></span><span class="fish f6"><i>🐟</i></span>
+  <span class="fish f7"><i>🐠</i></span>
+</div>
 
 <div class="wrap">
   <header>
