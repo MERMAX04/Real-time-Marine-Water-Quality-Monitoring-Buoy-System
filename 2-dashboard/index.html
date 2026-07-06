@@ -18,9 +18,11 @@
     --text:#eaf6ff; --muted:#8fb3cf; --accent:#31c8ff; --accent2:#5affd6;
     /* ---- สีสถานะ (ผ่านตัวตรวจ dataviz — ใช้คู่ไอคอน+ป้ายเสมอ) ---- */
     --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
-    /* ---- สี categorical 7 พารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
+    /* ---- สี categorical ตามพารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
     --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-chl:#008300;
     --c-orp:#9085e9; --c-oil:#e66767; --c-algae:#d55181; --c-ph:#19b6c4;
+    /* ค่าที่ probe จริงวัดได้เพิ่ม */
+    --c-temp:#e8663b; --c-cond:#7d74e0; --c-tds:#b5893f; --c-dopct:#4bb3e0;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -361,16 +363,27 @@ let lastDataAt = null, lastTs = null, lastPushAt = null;
 /* หน่วย = ตรงกับคู่มือ sensor (น้ำมัน=ppm, สาหร่าย=cells/mL)
    ideal/range = เกณฑ์ (อิงแนวทางมาตรฐานคุณภาพน้ำทะเลชายฝั่ง — ⚠️ ยืนยันตัวเลขกับ
    มาตรฐานกรมควบคุมมลพิษจริงก่อนใช้อ้างอิงในเล่มรายงาน) */
+// ★ แสดงเฉพาะค่าที่ probe ของ sensor ตัวนี้ "อ่านได้จริง" (ยืนยันจาก read_sensor.py)
+//   ⚠️ ideal/range ของ temp/cond/tds/do% เป็นค่าตั้งต้น — ค่อยจูนหลังจุ่มน้ำทะเลจริง
 const PARAMS = [
-  { key:'do',   th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L',    icon:'🫧', color:'var(--c-do)',   ideal:[4,8],      range:[2,10],     w:.20 },
-  { key:'sal',  th:'ความเค็ม',        en:'Salinity',          unit:'ppt',     icon:'🧂', color:'var(--c-sal)',  ideal:[30,34],    range:[26,36],    w:.10 },
-  { key:'turb', th:'ความขุ่น',        en:'Turbidity',         unit:'NTU',     icon:'🌫️', color:'var(--c-turb)', ideal:[0,10],     range:[0,50],     w:.15 },
-  { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',     unit:'µg/L',    icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.15 },
-  { key:'ph',   th:'ความเป็นกรด-ด่าง',en:'pH',                unit:'',        icon:'🧪', color:'var(--c-ph)',   ideal:[7.5,8.5],  range:[6,9],      w:.10 },
-  { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',      icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
-  { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppm',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,2],      range:[0,15],     w:.15 },
-  { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'cells/mL',icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.15 },
+  { key:'do',    th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L',  icon:'🫧', color:'var(--c-do)',    ideal:[4,8],      range:[2,10],     w:.18 },
+  { key:'do_pct',th:'ออกซิเจน (อิ่มตัว)',en:'DO Saturation',   unit:'%',     icon:'📊', color:'var(--c-dopct)', ideal:[80,120],   range:[0,200],    w:.10 },
+  { key:'temp',  th:'อุณหภูมิ',         en:'Temperature',       unit:'°C',    icon:'🌡️', color:'var(--c-temp)',  ideal:[26,31],    range:[20,36],    w:.10 },
+  { key:'ph',    th:'ความเป็นกรด-ด่าง', en:'pH',                unit:'',      icon:'🧪', color:'var(--c-ph)',    ideal:[7.5,8.5],  range:[6,9],      w:.15 },
+  { key:'sal',   th:'ความเค็ม',         en:'Salinity',          unit:'ppt',   icon:'🧂', color:'var(--c-sal)',   ideal:[30,34],    range:[26,36],    w:.13 },
+  { key:'cond',  th:'การนำไฟฟ้า',       en:'Conductivity',      unit:'mS/cm', icon:'⚡', color:'var(--c-cond)',  ideal:[40,55],    range:[0,65],     w:.12 },
+  { key:'tds',   th:'สารละลายรวม',      en:'TDS',               unit:'mg/L',  icon:'⚗️', color:'var(--c-tds)',   ideal:[0,45000],  range:[0,50000],  w:.09 },
+  { key:'turb',  th:'ความขุ่น',         en:'Turbidity',         unit:'NTU',   icon:'🌫️', color:'var(--c-turb)',  ideal:[0,10],     range:[0,50],     w:.13 },
 ];
+/* ------------------------------------------------------------------------
+   ค่าที่ "ซ่อนไว้ก่อน" — sensor ตัวนี้อ่านได้ 0 (ORP=ไม่มี probe แน่ ; chl/oil/algae
+   เป็นเซนเซอร์แสง อาจมี probe แต่ในอากาศ=0). ถ้าจุ่มน้ำแล้วพบว่ามีค่าจริง
+   ให้ย้ายบรรทัดที่ต้องการกลับเข้า PARAMS ด้านบน (คอลัมน์ยังอยู่ใน Supabase):
+   { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',    unit:'µg/L',    icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.10 },
+   { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',      icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
+   { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppm',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,2],      range:[0,15],     w:.10 },
+   { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'cells/mL',icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.10 },
+   ------------------------------------------------------------------------ */
 
 const HISTORY_LEN = 120;
 const history = {}, times = [];
@@ -438,7 +451,7 @@ function anomaly(key){
 /* ---------- AI: แปลผลหลายค่าพร้อมกันเป็น "เหตุการณ์" ---------- */
 function detectEvents(){
   const P={}; PARAMS.forEach(p=>P[p.key]=p);
-  const has=k=>history[k].length>0;
+  const has=k=>history[k] && history[k].length>0;   // null-safe: ค่าที่ซ่อน (ไม่มีใน PARAMS) จะ = ไม่มีข้อมูล
   const si=k=>has(k)?subIndex(P[k],history[k].at(-1)):100;   // 0-100 (ต่ำ=แย่)
   const ev=[];
   // สาหร่ายบลูม (ยูโทรฟิเคชัน): คลอโรฟิลล์ + สาหร่ายสีเขียวสูงพร้อมกัน
@@ -537,7 +550,8 @@ function buildInsight(wqiObj){
    ========================================================================= */
 let sbLatest = {};
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
-function mapRow(r){ return {do:r.do_val, sal:r.sal, turb:r.turb, chl:r.chl, ph:r.ph, orp:r.orp, oil:r.oil, algae:r.algae}; }
+function mapRow(r){ return {do:r.do_val, do_pct:r.do_pct, temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,
+                            chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
 function initSource(){
   if (CONFIG.mode === 'supabase'){
     const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);

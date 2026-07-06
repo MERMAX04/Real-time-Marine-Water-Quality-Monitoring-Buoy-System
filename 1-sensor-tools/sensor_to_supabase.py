@@ -90,23 +90,24 @@ def main():
             if not f or len(f) < 11:
                 print("  [อ่านไม่สำเร็จ] sensor ไม่ตอบ/เฟรมไม่ครบ — เช็คสาย/ไฟ แล้วลองใหม่")
             else:
-                # แผนที่ 11 ค่าจาก sensor -> 8 คอลัมน์ของ Dashboard/Supabase
+                # แผนที่ค่าจาก sensor -> คอลัมน์ Supabase (ส่งเฉพาะ probe ที่อ่านได้จริง)
                 # ลำดับ sensor: 0 DO,1 Turb,2 Cond,3 pH,4 Temp,5 ORP,6 Chl,7 OIW/BGA,8 Sal,9 TDS,10 DO%
                 payload = {
                     "device": DEVICE,
                     "do_val": round(f[0], 2),
                     "turb":   round(f[1], 2),
+                    "cond":   round(f[2], 3),
                     "ph":     round(f[3], 2),
-                    "orp":    round(f[5], 1),
-                    "chl":    round(f[6], 2),
-                    "algae":  round(f[7], 1),   # ช่อง OIW/BGA (สาหร่ายสีเขียว)
+                    "temp":   round(f[4], 2),
                     "sal":    round(f[8], 2),
-                    "oil":    round(f[7], 2),   # ตัวนี้ตัวเดียว ถ้ามี probe น้ำมันแยกค่อยแก้ทีหลัง
+                    "tds":    round(f[9], 2),
+                    "do_pct": round(f[10], 2),
+                    # ORP/Chl/OIW-BGA ตอนนี้ = 0 (ไม่มี probe/เซนเซอร์แสง) — ไม่ส่ง
                 }
                 try:
                     code = post_supabase(payload)
-                    print(f"  ✅ ส่งขึ้น Supabase ({code}) : DO {payload['do_val']} | pH {payload['ph']} | "
-                          f"Sal {payload['sal']} | Turb {payload['turb']}  (Temp {f[4]:.1f}°C)")
+                    print(f"  ✅ ส่งขึ้น Supabase ({code}) : DO {payload['do_val']} | Temp {payload['temp']}°C | "
+                          f"pH {payload['ph']} | Sal {payload['sal']} | Cond {payload['cond']} | Turb {payload['turb']}")
                 except urllib.error.HTTPError as e:
                     print(f"  ❌ Supabase ปฏิเสธ HTTP {e.code}: {e.read().decode(errors='replace')[:200]}")
                     print("     ➜ 401/403=RLS/anon key, 400=คอลัมน์ผิด (รัน schema.sql/ALTER ph แล้วยัง?)")

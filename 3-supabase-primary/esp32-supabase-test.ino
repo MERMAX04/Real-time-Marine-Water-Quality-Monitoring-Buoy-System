@@ -41,17 +41,17 @@ void loop(){
   if (WiFi.status()==WL_CONNECTED && millis()-lastSend > 5000){   // ทุก 5 วิ
     lastSend = millis();
 
-    // สร้าง JSON (หน่วยตรงกับ Dashboard: oil=ppm, algae=cells/mL)
+    // สร้าง JSON (คอลัมน์ตรงกับ probe ที่ sensor จริงอ่านได้ = ที่ Dashboard แสดง)
     String body = "{";
     body += "\"device\":\"" DEVICE_ID "\",";
-    body += "\"do_val\":" + String(rnd(4,9),2)   + ",";
-    body += "\"sal\":"    + String(rnd(28,35),2) + ",";
-    body += "\"turb\":"   + String(rnd(1,25),2)  + ",";
-    body += "\"chl\":"    + String(rnd(0.5,12),2)+ ",";
-    body += "\"ph\":"     + String(rnd(7.5,8.5),2)+ ",";
-    body += "\"orp\":"    + String(rnd(150,400),0)+ ",";
-    body += "\"oil\":"    + String(rnd(0,3),2)   + ",";
-    body += "\"algae\":"  + String(rnd(0,20000),0) + "}";
+    body += "\"do_val\":" + String(rnd(4,9),2)     + ",";
+    body += "\"do_pct\":" + String(rnd(70,120),1)  + ",";
+    body += "\"temp\":"   + String(rnd(26,31),2)   + ",";
+    body += "\"ph\":"     + String(rnd(7.5,8.5),2) + ",";
+    body += "\"sal\":"    + String(rnd(28,35),2)   + ",";
+    body += "\"cond\":"   + String(rnd(40,55),2)   + ",";
+    body += "\"tds\":"    + String(rnd(28,40),2)   + ",";
+    body += "\"turb\":"   + String(rnd(1,25),2)    + "}";
 
     WiFiClientSecure client;
     client.setInsecure();                 // ข้ามตรวจใบรับรอง (พอสำหรับงานนี้)
