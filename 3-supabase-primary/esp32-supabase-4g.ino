@@ -90,6 +90,7 @@ void loop(){
   body += "\"sal\":"    + String(rnd(28,35),2)  + ",";
   body += "\"turb\":"   + String(rnd(1,25),2)   + ",";
   body += "\"chl\":"    + String(rnd(0.5,12),2) + ",";
+  body += "\"ph\":"     + String(rnd(7.5,8.5),2)+ ",";
   body += "\"orp\":"    + String(rnd(150,400),0)+ ",";
   body += "\"oil\":"    + String(rnd(0,3),2)    + ",";
   body += "\"algae\":"  + String(rnd(0,20000),0)+ "}";

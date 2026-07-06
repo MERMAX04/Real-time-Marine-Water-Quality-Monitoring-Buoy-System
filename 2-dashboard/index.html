@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ทุ่นตรวจคุณภาพน้ำทะเล | AI Realtime Dashboard</title>
+<title>ระบบทุ่นตรวจวัดสภาพน้ำทางทะเลแบบเรียลไทม์ | Real-time Marine Water Quality Monitoring Surface Buoy System Dashboard</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌊%3C/text%3E%3C/svg%3E">
 <!-- Supabase SDK (โหลดจาก CDN — ใช้เฉพาะโหมด supabase) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,7 +20,7 @@
     --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     /* ---- สี categorical 7 พารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
     --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-chl:#008300;
-    --c-orp:#9085e9; --c-oil:#e66767; --c-algae:#d55181;
+    --c-orp:#9085e9; --c-oil:#e66767; --c-algae:#d55181; --c-ph:#19b6c4;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -253,8 +253,8 @@
     <div class="brand">
       <div class="logo">🌊</div>
       <div>
-        <h1>ทุ่นตรวจคุณภาพน้ำทะเล</h1>
-        <p>AI-Powered Realtime Marine Water Quality Monitoring</p>
+        <h1>ระบบทุ่นตรวจวัดสภาพน้ำทางทะเลแบบเรียลไทม์</h1>
+        <p>Real-time Marine Water Quality Monitoring Surface Buoy System Dashboard</p>
       </div>
     </div>
     <div class="status-bar">
@@ -354,7 +354,7 @@ const SAMPLE_MIN = 5;
 let lastDataAt = null, lastTs = null, lastPushAt = null;
 
 /* =========================================================================
-   นิยาม 7 พารามิเตอร์
+   นิยาม 8 พารามิเตอร์
    ideal:[lo,hi] = ช่วงที่ดี | range:[min,max] = ช่วงกายภาพ (ใช้จำลอง+คิดคะแนน)
    w = น้ำหนักใน WQI | color = สี categorical (ตรวจแล้ว)
    ========================================================================= */
@@ -366,6 +366,7 @@ const PARAMS = [
   { key:'sal',  th:'ความเค็ม',        en:'Salinity',          unit:'ppt',     icon:'🧂', color:'var(--c-sal)',  ideal:[30,34],    range:[26,36],    w:.10 },
   { key:'turb', th:'ความขุ่น',        en:'Turbidity',         unit:'NTU',     icon:'🌫️', color:'var(--c-turb)', ideal:[0,10],     range:[0,50],     w:.15 },
   { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',     unit:'µg/L',    icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.15 },
+  { key:'ph',   th:'ความเป็นกรด-ด่าง',en:'pH',                unit:'',        icon:'🧪', color:'var(--c-ph)',   ideal:[7.5,8.5],  range:[6,9],      w:.10 },
   { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',      icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
   { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppm',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,2],      range:[0,15],     w:.15 },
   { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'cells/mL',icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.15 },
@@ -536,7 +537,7 @@ function buildInsight(wqiObj){
    ========================================================================= */
 let sbLatest = {};
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
-function mapRow(r){ return {do:r.do_val, sal:r.sal, turb:r.turb, chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }
+function mapRow(r){ return {do:r.do_val, sal:r.sal, turb:r.turb, chl:r.chl, ph:r.ph, orp:r.orp, oil:r.oil, algae:r.algae}; }
 function initSource(){
   if (CONFIG.mode === 'supabase'){
     const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);

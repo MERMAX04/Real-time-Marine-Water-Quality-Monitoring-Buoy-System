@@ -12,10 +12,14 @@ create table if not exists public.readings (
   sal        real,   -- ความเค็ม (ppt)
   turb       real,   -- ความขุ่น (NTU)
   chl        real,   -- คลอโรฟิลล์ (µg/L)
+  ph         real,   -- ความเป็นกรด-ด่าง (pH)
   orp        real,   -- ศักย์ออกซิเดชัน (mV)
   oil        real,   -- น้ำมัน (ppm)
   algae      real    -- สาหร่ายสีเขียว (cells/mL)
 );
+
+-- ⚠️ ถ้าสร้างตารางไปแล้วก่อนเพิ่ม pH ให้รันบรรทัดนี้เพิ่มคอลัมน์ (ปลอดภัย รันซ้ำได้):
+alter table public.readings add column if not exists ph real;
 
 -- index: ดึง "ล่าสุด/ย้อนหลัง" ของแต่ละทุ่นให้เร็ว
 create index if not exists idx_readings_device_time
@@ -40,7 +44,7 @@ create or replace view public.readings_daily as
 select device,
        date_trunc('day', created_at) as day,
        avg(do_val) do_avg, avg(sal) sal_avg, avg(turb) turb_avg,
-       avg(chl) chl_avg, avg(orp) orp_avg, avg(oil) oil_avg, avg(algae) algae_avg,
+       avg(chl) chl_avg, avg(ph) ph_avg, avg(orp) orp_avg, avg(oil) oil_avg, avg(algae) algae_avg,
        count(*) n
 from public.readings
 group by device, date_trunc('day', created_at)
