@@ -28,6 +28,14 @@ const char GPASS[]= "";
 #define SB_ANON  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqYnJnb2x1bGdna3N4bnVpY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjc0ODAsImV4cCI6MjA5ODg0MzQ4MH0.0coKRuYMMOwLq9yJFsOff99ya9RBwyLBzqxN2YU1JWg"
 #define DEVICE_ID "buoy-01"
 
+// ===== LINE Messaging API (แจ้งเตือนวิกฤต — ESP32 ยิงตรง) =====
+// วิธีเอา token/id: ดู 5-extensions/02-alerts-notification.md (สร้าง LINE Official Account + Channel)
+#define LINE_ENABLE   1                          // 0 = ปิดแจ้งเตือน LINE
+#define LINE_HOST     "api.line.me"
+#define LINE_TOKEN    "ใส่_CHANNEL_ACCESS_TOKEN" // จาก LINE Developers > Messaging API
+#define LINE_TO       "ใส่_userId_หรือ_groupId"  // ปลายทางที่จะ push หา (ตัวเอง/กลุ่ม)
+const unsigned long ALERT_COOLDOWN = 30UL*60UL*1000UL;  // กันเตือนซ้ำ 30 นาที/รายการ
+
 // ---- ขา LilyGO T-A7670 (ค่ามาตรฐาน; ถ้าต่อไม่ติดให้เทียบกับ utilities.h ของ LilyGO รุ่นบอร์ดจริง) ----
 #define MODEM_BAUD    115200
 #define PIN_TX        26      // ESP32 TX -> โมเด็ม RX
@@ -63,6 +71,53 @@ bool connect4G(){
   return true;
 }
 
+// ================= LINE แจ้งเตือน =================
+// push ข้อความเข้า LINE ผ่าน Messaging API (HTTPS) — ใช้ client SSL ตัวเดียวกับ Supabase
+bool pushLine(const String& text){
+  if(!client.connect(LINE_HOST, 443)){ Serial.println("LINE: ❌ ต่อไม่ได้"); return false; }
+  String payload = String("{\"to\":\"") + LINE_TO +
+                   "\",\"messages\":[{\"type\":\"text\",\"text\":\"" + text + "\"}]}";
+  client.print(F("POST /v2/bot/message/push HTTP/1.1\r\n"));
+  client.print(F("Host: " LINE_HOST "\r\n"));
+  client.print(F("Authorization: Bearer " LINE_TOKEN "\r\n"));
+  client.print(F("Content-Type: application/json\r\n"));
+  client.print("Content-Length: " + String(payload.length()) + "\r\n");
+  client.print(F("Connection: close\r\n\r\n"));
+  client.print(payload);
+  unsigned long t0 = millis(); String status = "";
+  while(millis()-t0 < 10000 && !client.available()) delay(10);
+  if(client.available()) status = client.readStringUntil('\n');
+  client.stop();
+  bool ok = status.indexOf("200") >= 0;
+  Serial.println(ok ? "LINE: ✅ ส่งแล้ว" : "LINE: ⚠️ " + status + " (เช็ค token/userId/quota)");
+  return ok;
+}
+
+// กันเตือนซ้ำ: แต่ละรายการ (index) ส่งซ้ำได้เมื่อพ้น cooldown
+unsigned long lastAlert[5] = {0,0,0,0,0};
+bool canAlert(int i){
+  unsigned long now = millis();
+  if(lastAlert[i]==0 || now - lastAlert[i] > ALERT_COOLDOWN){ lastAlert[i] = now; return true; }
+  return false;
+}
+
+// ตรวจเกณฑ์วิกฤต (โฟกัสค่าที่อันตรายจริง) แล้ว push LINE ทีเดียวรวมทุกข้อ
+void checkAndAlert(float doVal, float ph, float temp, float turb){
+#if LINE_ENABLE
+  String lines = "";                              // "\\n" = ขึ้นบรรทัดใหม่ใน LINE
+  if(doVal < 3.0  && canAlert(0)){ lines += "\\n🔴 ออกซิเจนละลายน้ำต่ำวิกฤต: "; lines += String(doVal,2); lines += " mg/L (สัตว์น้ำเสี่ยงตาย)"; }
+  if(ph    < 7.0  && canAlert(1)){ lines += "\\n🔴 น้ำเป็นกรดผิดปกติ: pH ";      lines += String(ph,2); }
+  if(ph    > 9.0  && canAlert(2)){ lines += "\\n🔴 น้ำเป็นด่างผิดปกติ: pH ";     lines += String(ph,2); }
+  if(temp  > 33.0 && canAlert(3)){ lines += "\\n🟠 อุณหภูมิน้ำสูง: ";            lines += String(temp,1); lines += " °C"; }
+  if(turb  > 40.0 && canAlert(4)){ lines += "\\n🟠 ความขุ่นสูงผิดปกติ: ";        lines += String(turb,1); lines += " NTU"; }
+  if(lines.length() > 0){
+    String msg = "🌊 แจ้งเตือนคุณภาพน้ำ (" DEVICE_ID ")";
+    msg += lines;
+    pushLine(msg);
+  }
+#endif
+}
+
 void setup(){
   Serial.begin(115200);
   delay(500);
@@ -83,17 +138,21 @@ void loop(){
 
   if(!modem.isGprsConnected() && !connect4G()) return;
 
+  // อ่านค่าจาก sensor ตรงนี้ (ตอนนี้ยังเป็นค่าปลอมเพื่อทดสอบ — พอต่อ RS485 จริงค่อยแทน)
+  float doVal=rnd(4,9), doPct=rnd(70,120), temp=rnd(26,31), ph=rnd(7.5,8.5);
+  float sal=rnd(28,35), cond=rnd(40,55), tds=rnd(28,40), turb=rnd(1,25);
+
   // สร้าง JSON (คอลัมน์ตรงกับ probe ที่ sensor จริงอ่านได้ = ที่ Dashboard แสดง)
   String body = "{";
   body += "\"device\":\"" DEVICE_ID "\",";
-  body += "\"do_val\":" + String(rnd(4,9),2)     + ",";
-  body += "\"do_pct\":" + String(rnd(70,120),1)  + ",";
-  body += "\"temp\":"   + String(rnd(26,31),2)   + ",";
-  body += "\"ph\":"     + String(rnd(7.5,8.5),2) + ",";
-  body += "\"sal\":"    + String(rnd(28,35),2)   + ",";
-  body += "\"cond\":"   + String(rnd(40,55),2)   + ",";
-  body += "\"tds\":"    + String(rnd(28,40),2)   + ",";
-  body += "\"turb\":"   + String(rnd(1,25),2)    + "}";
+  body += "\"do_val\":" + String(doVal,2) + ",";
+  body += "\"do_pct\":" + String(doPct,1) + ",";
+  body += "\"temp\":"   + String(temp,2)  + ",";
+  body += "\"ph\":"     + String(ph,2)    + ",";
+  body += "\"sal\":"    + String(sal,2)   + ",";
+  body += "\"cond\":"   + String(cond,2)  + ",";
+  body += "\"tds\":"    + String(tds,2)   + ",";
+  body += "\"turb\":"   + String(turb,2)  + "}";
 
   Serial.print("ต่อ Supabase (https)...");
   if(!client.connect(SB_HOST, 443)){ Serial.println(" ❌ ต่อไม่ได้"); return; }
@@ -119,6 +178,9 @@ void loop(){
   else Serial.println("⚠️ ไม่ใช่ 201 — 401/403=RLS/anon ผิด, 400=คอลัมน์ผิด, อื่นๆ=เน็ต/TLS");
 
   client.stop();
+
+  // ตรวจเกณฑ์วิกฤต แล้วแจ้งเตือน LINE (ยิงตรงจาก ESP32)
+  checkAndAlert(doVal, ph, temp, turb);
 }
 
 /* ---------------------------------------------------------------------------
