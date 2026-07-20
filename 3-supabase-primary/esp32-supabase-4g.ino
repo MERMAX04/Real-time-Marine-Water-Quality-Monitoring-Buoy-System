@@ -156,6 +156,42 @@ bool readGPS(){
   gLat=la; gLon=lo; return true;
 }
 
+// ================= HTTPS POST ด้วย "HTTP application ในตัวโมเด็ม" =================
+// (A7670E ต่อ HTTPS ผ่าน TLS socket ไม่เสถียร — ใช้ AT+HTTP... เชื่อถือได้กว่า)
+String waitFor(const char* token, uint32_t timeout){
+  String r=""; uint32_t t0=millis();
+  while(millis()-t0 < timeout){
+    while(SerialAT.available()) r += (char)SerialAT.read();
+    if(r.indexOf(token) >= 0) break;
+  }
+  return r;
+}
+int httpPost(const String& url, const String& body){
+  atCmd("AT+HTTPTERM", 800);                                  // เคลียร์ session เก่า
+  if(atCmd("AT+HTTPINIT", 3000).indexOf("OK") < 0){ Serial.print("(HTTPINIT fail)"); return -1; }
+  atCmd("AT+HTTPPARA=\"URL\",\"" + url + "\"", 2000);
+  atCmd("AT+HTTPPARA=\"CONTENT\",\"application/json\"", 1500);
+  atCmd("AT+HTTPPARA=\"SSLCFG\",0", 1500);                    // ใช้ SSL context 0
+  atCmd("AT+HTTPPARA=\"USERDATA\",\"apikey: " SB_ANON "\"", 1500);
+  atCmd("AT+HTTPPARA=\"USERDATA\",\"Authorization: Bearer " SB_ANON "\"", 1500);
+  atCmd("AT+HTTPPARA=\"USERDATA\",\"Prefer: return=minimal\"", 1500);
+
+  while(SerialAT.available()) SerialAT.read();
+  SerialAT.println("AT+HTTPDATA=" + String(body.length()) + ",10000");
+  if(waitFor("DOWNLOAD", 3000).indexOf("DOWNLOAD") < 0){ Serial.print("(no DOWNLOAD)"); atCmd("AT+HTTPTERM",800); return -2; }
+  SerialAT.print(body);                                        // ส่ง payload
+  waitFor("OK", 5000);
+
+  while(SerialAT.available()) SerialAT.read();
+  SerialAT.println("AT+HTTPACTION=1");                         // 1 = POST
+  String r = waitFor("+HTTPACTION:", 25000);                  // รอ +HTTPACTION: 1,<code>,<len>
+  int code=-1, p=r.indexOf("+HTTPACTION:");
+  if(p >= 0){ int c1=r.indexOf(',',p), c2=r.indexOf(',',c1+1);
+              if(c1>0 && c2>0) code = r.substring(c1+1,c2).toInt(); }
+  atCmd("AT+HTTPTERM", 1500);
+  return code;
+}
+
 void setup(){
   Serial.begin(115200);
   delay(500);
@@ -163,13 +199,23 @@ void setup(){
   modemPowerOn();
   SerialAT.begin(MODEM_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
   delay(3000);
-  Serial.print("เริ่มต้นโมเด็ม...");
-  if(!modem.init()){ Serial.println(" ❌ ไม่ตอบ (เช็คขา/ไฟ/เสา)"); }
-  else Serial.println(" ✅ " + modem.getModemName());
+  Serial.print("รอโมเด็มบูต + ทดสอบ AT ");
+  int mretry=0;
+  while(!modem.testAT(1000)){
+    Serial.print(".");
+    if(++mretry>15){ Serial.println("\n  ↻ กด PWRKEY ซ้ำ (ถ้ายังไม่ติด = ไฟไม่พอ ให้เสียบแบต)"); modemPowerOn(); mretry=0; }
+  }
+  Serial.println(" ✅ โมเด็มตอบแล้ว: " + modem.getModemName());
   Serial.print("เปิด GNSS...");            // เปิด GPS ทิ้งไว้ อ่านพิกัดตอนส่งแต่ละรอบ
   atCmd("AT+CGNSSPWR=1", 5000);
   Serial.println(" ✅");
-  client.setInsecure();          // ข้ามตรวจใบรับรอง TLS (พอสำหรับงานนี้)
+  // ตั้ง SSL context 0: TLS + ไม่ตรวจใบรับรอง + ข้ามการเช็คเวลา (แก้ error 715 handshake)
+  Serial.print("ตั้ง SSL context 0... ");
+  atCmd("AT+CSSLCFG=\"sslversion\",0,4", 1500);      // 4 = รองรับทุกเวอร์ชัน TLS
+  atCmd("AT+CSSLCFG=\"authmode\",0,0", 1500);        // 0 = ไม่ตรวจใบรับรองเซิร์ฟเวอร์
+  atCmd("AT+CSSLCFG=\"ignorelocaltime\",0,1", 1500); // ข้ามการเช็ควันหมดอายุ
+  String _sni = atCmd("AT+CSSLCFG=\"enableSNI\",0,1", 1500);        // ★ เปิด SNI (จำเป็นสำหรับ Cloudflare/Supabase)
+  Serial.println(_sni.indexOf("OK") >= 0 ? "✅ (เปิด SNI แล้ว)" : ("⚠️ SNI ตอบ: " + _sni));
   connect4G();
 }
 
@@ -201,30 +247,10 @@ void loop(){
     body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);
   body += "}";
 
-  Serial.print("ต่อ Supabase (https)...");
-  if(!client.connect(SB_HOST, 443)){ Serial.println(" ❌ ต่อไม่ได้"); return; }
-  Serial.println(" ✅");
-
-  // เขียน HTTP request เอง (POST /rest/v1/readings)
-  client.print(F("POST /rest/v1/readings HTTP/1.1\r\n"));
-  client.print(F("Host: " SB_HOST "\r\n"));
-  client.print(F("apikey: " SB_ANON "\r\n"));
-  client.print(F("Authorization: Bearer " SB_ANON "\r\n"));
-  client.print(F("Content-Type: application/json\r\n"));
-  client.print(F("Prefer: return=minimal\r\n"));
-  client.print("Content-Length: " + String(body.length()) + "\r\n");
-  client.print(F("Connection: close\r\n\r\n"));
-  client.print(body);
-
-  // อ่านบรรทัดแรกของ response (เช่น "HTTP/1.1 201 Created")
-  unsigned long t0 = millis(); String status = "";
-  while(millis()-t0 < 10000 && !client.available()) delay(10);
-  if(client.available()) status = client.readStringUntil('\n');
-  Serial.println("ตอบกลับ: " + status);
-  if(status.indexOf("201") >= 0) Serial.println("✅ insert สำเร็จ : " + body);
-  else Serial.println("⚠️ ไม่ใช่ 201 — 401/403=RLS/anon ผิด, 400=คอลัมน์ผิด, อื่นๆ=เน็ต/TLS");
-
-  client.stop();
+  Serial.print("POST Supabase (HTTPS ในตัวโมเด็ม)...");
+  int code = httpPost("https://" SB_HOST "/rest/v1/readings", body);
+  if(code == 201 || code == 200) Serial.println(" ✅ insert สำเร็จ (" + String(code) + ")\n  " + body);
+  else Serial.println(" ⚠️ HTTP " + String(code) + " (401/403=key/RLS, 400=คอลัมน์, ติดลบ=SSL/เน็ต)");
 
   // ตรวจเกณฑ์วิกฤต แล้วแจ้งเตือน LINE (ยิงตรงจาก ESP32)
   checkAndAlert(doVal, ph, temp, turb);

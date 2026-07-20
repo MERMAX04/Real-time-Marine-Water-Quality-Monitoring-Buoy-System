@@ -23,3 +23,7 @@ Guide files/_sensor_text.txt
 
 # ===== รูปปลาต้นฉบับ (ใช้ก๊อปที่ 2-dashboard/fish/ แทน) =====
 /PNG/
+
+# Arduino build-copy folders (duplicate of .ino)
+3-supabase-primary/Buoy_4G/
+3-supabase-primary/esp32-supabase-4g/
