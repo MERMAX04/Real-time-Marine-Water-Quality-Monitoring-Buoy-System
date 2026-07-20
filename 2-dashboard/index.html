@@ -322,6 +322,7 @@
       <div class="kv">ละติจูด<br><b id="lat">7.8804° N</b></div>
       <div class="kv">ลองจิจูด<br><b id="lon">98.3923° E</b></div>
       <div class="kv">สัญญาณ 4G<br><b id="sig">▂▄▆█ ดี</b></div>
+      <div class="kv"><a id="maplink" href="#" target="_blank" rel="noopener" style="color:#31c8ff;text-decoration:none;font-weight:700">🗺️ เปิดใน Google Maps</a></div>
     </div>
   </div>
 
@@ -551,6 +552,7 @@ function buildInsight(wqiObj){
 let sbLatest = {};
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
 function mapRow(r){ return {do:r.do_val, do_pct:r.do_pct, temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,
+                            lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
                             chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
 function initSource(){
   if (CONFIG.mode === 'supabase'){
@@ -793,6 +795,16 @@ function updateStatus(){
   fresh.textContent='อัปเดต: '+relTime(ageS);
   if(ageS<=CONFIG.staleSeconds){ conn.className='pill st-on'; txt.textContent='ออนไลน์'; }
   else { conn.className='pill st-stale'; txt.textContent='ข้อมูลค้าง'; }
+  updateLocation();
+}
+/* อัปเดตการ์ด "ตำแหน่งทุ่น" จากพิกัด GPS จริง (โหมด supabase/server) */
+function updateLocation(){
+  if(CONFIG.mode==='mock') return;                       // mock: คงพิกัดตัวอย่างไว้
+  const la=Number(sbLatest.lat), lo=Number(sbLatest.lon);
+  if(sbLatest.lat==null||sbLatest.lon==null||isNaN(la)||isNaN(lo)) return;  // ยังไม่มี GPS -> คงค่าเดิม
+  document.getElementById('lat').textContent=Math.abs(la).toFixed(6)+'° '+(la>=0?'N':'S');
+  document.getElementById('lon').textContent=Math.abs(lo).toFixed(6)+'° '+(lo>=0?'E':'W');
+  document.getElementById('maplink').href='https://maps.google.com/?q='+la.toFixed(6)+','+lo.toFixed(6);
 }
 /* การ์ด "ไม่มีข้อมูล" (probe ไม่ได้ต่อ/ยังไม่ได้ค่า) */
 function renderNoData(p){

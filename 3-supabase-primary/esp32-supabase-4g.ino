@@ -15,7 +15,7 @@
    ========================================================================= */
 
 // ---- ต้องประกาศ "ก่อน" include TinyGSM ----
-#define TINY_GSM_MODEM_A7670          // รุ่นโมเด็ม (A7670G ใช้ชุดคำสั่งนี้)
+#define TINY_GSM_MODEM_A7672X         // TinyGSM ใช้ชื่อ A7672X ครอบคลุม A7670E (ชุดคำสั่งเดียวกัน)
 #define SerialAT       Serial1        // ESP32 คุยกับโมเด็มผ่าน Serial1
 #define TINY_GSM_RX_BUFFER 1024
 #include <TinyGsmClient.h>
@@ -36,14 +36,12 @@ const char GPASS[]= "";
 #define LINE_TO       "ใส่_userId_หรือ_groupId"  // ปลายทางที่จะ push หา (ตัวเอง/กลุ่ม)
 const unsigned long ALERT_COOLDOWN = 30UL*60UL*1000UL;  // กันเตือนซ้ำ 30 นาที/รายการ
 
-// ---- ขา LilyGO T-A7670 (ค่ามาตรฐาน; ถ้าต่อไม่ติดให้เทียบกับ utilities.h ของ LilyGO รุ่นบอร์ดจริง) ----
+// ---- ขา LilyGO T-Call-A7670 V1.0 (RX=25, RST=27 ต่างจากรุ่น T-A7670! อ้างอิง utilities.h ของ LilyGO) ----
 #define MODEM_BAUD    115200
 #define PIN_TX        26      // ESP32 TX -> โมเด็ม RX
-#define PIN_RX        27      // ESP32 RX <- โมเด็ม TX
+#define PIN_RX        25      // ESP32 RX <- โมเด็ม TX  (V1.0 = 25)
 #define PIN_PWRKEY    4       // ปุ่มเปิดโมเด็ม
-#define PIN_POWERON   12      // จ่ายไฟภาคโมเด็ม (ต้อง HIGH)
-#define PIN_RST       5       // reset
-#define PIN_DTR       25
+#define PIN_RST       27      // reset (V1.0 = 27, active LOW)
 // ======================================================
 
 TinyGsm        modem(SerialAT);
@@ -53,11 +51,15 @@ unsigned long lastSend = 0;
 float rnd(float lo, float hi){ return lo + (random(0,1000)/1000.0)*(hi-lo); }
 
 void modemPowerOn(){
-  pinMode(PIN_POWERON, OUTPUT); digitalWrite(PIN_POWERON, HIGH);   // เปิดไฟภาคโมเด็ม
-  pinMode(PIN_RST, OUTPUT);     digitalWrite(PIN_RST, HIGH);
+  // รีเซ็ตโมเด็ม (V1.0 reset = active LOW)
+  pinMode(PIN_RST, OUTPUT);
+  digitalWrite(PIN_RST, HIGH); delay(100);
+  digitalWrite(PIN_RST, LOW);  delay(2600);   // assert reset
+  digitalWrite(PIN_RST, HIGH);                // release
+  // กดปุ่ม PWRKEY เปิดโมเด็ม (pulse 100 ms ตามสเปก LilyGO)
   pinMode(PIN_PWRKEY, OUTPUT);
   digitalWrite(PIN_PWRKEY, LOW);  delay(100);
-  digitalWrite(PIN_PWRKEY, HIGH); delay(1000);                     // กดปุ่ม PWRKEY ~1 วิ
+  digitalWrite(PIN_PWRKEY, HIGH); delay(100);
   digitalWrite(PIN_PWRKEY, LOW);
 }
 
@@ -118,6 +120,42 @@ void checkAndAlert(float doVal, float ph, float temp, float turb){
 #endif
 }
 
+// ================= GPS (GNSS ผ่านคำสั่ง AT) =================
+double gLat=1000, gLon=1000;   // 1000 = ยังไม่มีพิกัด (ยังไม่ล็อกดาว)
+
+String atCmd(const String& cmd, uint32_t timeout=3000){
+  while(SerialAT.available()) SerialAT.read();
+  SerialAT.println(cmd);
+  String r=""; uint32_t t0=millis();
+  while(millis()-t0 < timeout){ while(SerialAT.available()) r += (char)SerialAT.read(); }
+  return r;
+}
+String gpsField(const String& s, int idx){
+  int start=0, count=0;
+  for(int i=0;i<=(int)s.length();i++){
+    if(i==(int)s.length() || s[i]==','){
+      if(count==idx) return s.substring(start,i);
+      count++; start=i+1;
+    }
+  }
+  return "";
+}
+// อ่านพิกัด (A7670E คืนเป็นองศาทศนิยม) -> อัปเดต gLat/gLon ถ้าล็อกได้
+bool readGPS(){
+  String r = atCmd("AT+CGNSSINFO", 3000);
+  int i = r.indexOf("+CGNSSINFO:");
+  if(i < 0) return false;
+  String line = r.substring(i + 11); line.trim();
+  int nsIdx=-1, ewIdx=-1;
+  for(int k=0;k<20;k++){ String f=gpsField(line,k);
+    if(f=="N"||f=="S") nsIdx=k; else if(f=="E"||f=="W") ewIdx=k; }
+  if(nsIdx < 1 || ewIdx < 1) return false;
+  double la=gpsField(line,nsIdx-1).toDouble(); if(gpsField(line,nsIdx)=="S") la=-la;
+  double lo=gpsField(line,ewIdx-1).toDouble(); if(gpsField(line,ewIdx)=="W") lo=-lo;
+  if(la==0 && lo==0) return false;
+  gLat=la; gLon=lo; return true;
+}
+
 void setup(){
   Serial.begin(115200);
   delay(500);
@@ -128,6 +166,9 @@ void setup(){
   Serial.print("เริ่มต้นโมเด็ม...");
   if(!modem.init()){ Serial.println(" ❌ ไม่ตอบ (เช็คขา/ไฟ/เสา)"); }
   else Serial.println(" ✅ " + modem.getModemName());
+  Serial.print("เปิด GNSS...");            // เปิด GPS ทิ้งไว้ อ่านพิกัดตอนส่งแต่ละรอบ
+  atCmd("AT+CGNSSPWR=1", 5000);
+  Serial.println(" ✅");
   client.setInsecure();          // ข้ามตรวจใบรับรอง TLS (พอสำหรับงานนี้)
   connect4G();
 }
@@ -142,6 +183,9 @@ void loop(){
   float doVal=rnd(4,9), doPct=rnd(70,120), temp=rnd(26,31), ph=rnd(7.5,8.5);
   float sal=rnd(28,35), cond=rnd(40,55), tds=rnd(28,40), turb=rnd(1,25);
 
+  if(readGPS()) Serial.println("GPS: " + String(gLat,6) + ", " + String(gLon,6));
+  else          Serial.println("GPS: ยังไม่ล็อกพิกัด (เสาต้องเห็นฟ้า)");
+
   // สร้าง JSON (คอลัมน์ตรงกับ probe ที่ sensor จริงอ่านได้ = ที่ Dashboard แสดง)
   String body = "{";
   body += "\"device\":\"" DEVICE_ID "\",";
@@ -152,7 +196,10 @@ void loop(){
   body += "\"sal\":"    + String(sal,2)   + ",";
   body += "\"cond\":"   + String(cond,2)  + ",";
   body += "\"tds\":"    + String(tds,2)   + ",";
-  body += "\"turb\":"   + String(turb,2)  + "}";
+  body += "\"turb\":"   + String(turb,2);
+  if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง
+    body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);
+  body += "}";
 
   Serial.print("ต่อ Supabase (https)...");
   if(!client.connect(SB_HOST, 443)){ Serial.println(" ❌ ต่อไม่ได้"); return; }

@@ -16,6 +16,8 @@ create table if not exists public.readings (
   cond       real,   -- การนำไฟฟ้า (mS/cm)
   tds        real,   -- สารละลายรวม (mg/L)
   turb       real,   -- ความขุ่น (NTU)
+  lat        double precision,   -- พิกัด GPS ละติจูด (องศาทศนิยม)
+  lon        double precision,   -- พิกัด GPS ลองจิจูด (องศาทศนิยม)
   -- ค่าที่ probe รุ่นนี้ยังไม่ได้ติด (เก็บคอลัมน์ไว้เผื่ออนาคต):
   chl        real,   -- คลอโรฟิลล์ (µg/L)
   orp        real,   -- ศักย์ออกซิเดชัน (mV)
@@ -29,6 +31,8 @@ alter table public.readings add column if not exists do_pct real;
 alter table public.readings add column if not exists temp   real;
 alter table public.readings add column if not exists cond   real;
 alter table public.readings add column if not exists tds    real;
+alter table public.readings add column if not exists lat    double precision;
+alter table public.readings add column if not exists lon    double precision;
 
 -- index: ดึง "ล่าสุด/ย้อนหลัง" ของแต่ละทุ่นให้เร็ว
 create index if not exists idx_readings_device_time

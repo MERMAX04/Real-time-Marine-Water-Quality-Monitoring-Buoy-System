@@ -1,0 +1,281 @@
+<title>แผนผังการทำงานของระบบทุ่นตรวจน้ำทะเล</title>
+<style>
+  :root{
+    --bg:#eaf2f3; --surface:#ffffff; --surface-2:#f3f8f9;
+    --ink:#0b2027; --ink-soft:#4c6771; --ink-faint:#7794a0;
+    --line:#d2e1e4; --line-strong:#b7cdd2;
+    --accent:#0f9fb0; --blue:#2f78d6; --warm:#d95f39; --green:#2f9c68; --violet:#6b5fd0;
+    --mono-bg:#eef5f6; --mono-ink:#0a5a66;
+    --shadow:0 1px 2px rgba(12,40,50,.06), 0 8px 24px rgba(12,40,50,.07);
+    --pipe:#c4d8dc;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#05161b; --surface:#0b242c; --surface-2:#0e2b34;
+      --ink:#e3f0f2; --ink-soft:#93b3bb; --ink-faint:#5f838d;
+      --line:#1b3d47; --line-strong:#265059;
+      --accent:#1cbccc; --blue:#4c93e6; --warm:#e8734e; --green:#38b57c; --violet:#8b80e6;
+      --mono-bg:#0c2a32; --mono-ink:#5fd3e0;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+      --pipe:#234a54;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#eaf2f3; --surface:#ffffff; --surface-2:#f3f8f9;
+    --ink:#0b2027; --ink-soft:#4c6771; --ink-faint:#7794a0;
+    --line:#d2e1e4; --line-strong:#b7cdd2;
+    --accent:#0f9fb0; --blue:#2f78d6; --warm:#d95f39; --green:#2f9c68; --violet:#6b5fd0;
+    --mono-bg:#eef5f6; --mono-ink:#0a5a66; --pipe:#c4d8dc;
+    --shadow:0 1px 2px rgba(12,40,50,.06), 0 8px 24px rgba(12,40,50,.07);
+  }
+  :root[data-theme="dark"]{
+    --bg:#05161b; --surface:#0b242c; --surface-2:#0e2b34;
+    --ink:#e3f0f2; --ink-soft:#93b3bb; --ink-faint:#5f838d;
+    --line:#1b3d47; --line-strong:#265059;
+    --accent:#1cbccc; --blue:#4c93e6; --warm:#e8734e; --green:#38b57c; --violet:#8b80e6;
+    --mono-bg:#0c2a32; --mono-ink:#5fd3e0; --pipe:#234a54;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+      var(--bg);
+    color:var(--ink);
+    font-family:"Segoe UI","Leelawadee UI","Noto Sans Thai",Tahoma,system-ui,-apple-system,sans-serif;
+    line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:44px 22px 64px}
+
+  /* ---------- header ---------- */
+  .eyebrow{
+    font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 10px;
+  }
+  h1{
+    font-size:clamp(25px,4.6vw,38px); line-height:1.15; margin:0 0 12px;
+    letter-spacing:-.01em; text-wrap:balance; font-weight:800;
+  }
+  .lede{max-width:60ch; margin:0; color:var(--ink-soft); font-size:16px}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 16px; margin-top:20px}
+  .legend span{display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--ink-soft)}
+  .legend b{width:22px; height:0; border-top:2px solid var(--accent); display:inline-block; border-radius:2px}
+  .legend .dashed{border-top-style:dashed; border-color:var(--ink-faint)}
+
+  /* ---------- flow ---------- */
+  .flow{margin-top:34px}
+  .node{
+    position:relative; background:var(--surface); border:1px solid var(--line);
+    border-radius:16px; padding:20px 22px 20px 20px; box-shadow:var(--shadow);
+    display:grid; grid-template-columns:52px 1fr; gap:16px; align-items:start;
+    border-left:4px solid var(--c,var(--accent));
+  }
+  .marker{
+    width:52px; height:52px; border-radius:13px; display:grid; place-items:center;
+    background:color-mix(in srgb, var(--c,var(--accent)) 15%, var(--surface));
+    color:var(--c,var(--accent)); font-size:26px; line-height:1;
+    position:relative;
+  }
+  .stage{
+    position:absolute; top:-9px; left:-9px; width:22px; height:22px; border-radius:7px;
+    background:var(--c,var(--accent)); color:#fff; font-size:12px; font-weight:800;
+    display:grid; place-items:center; box-shadow:0 2px 6px rgba(0,0,0,.2);
+    font-variant-numeric:tabular-nums;
+  }
+  .n-title{font-size:18px; font-weight:800; margin:2px 0 1px; letter-spacing:-.01em}
+  .n-en{font-size:12.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--c,var(--accent)); margin:0 0 9px}
+  .n-body{margin:0; color:var(--ink-soft); font-size:14.5px}
+  .n-body .params{color:var(--ink); font-weight:600}
+
+  /* dual (current / future) rows inside a node */
+  .modes{display:flex; flex-direction:column; gap:9px; margin:12px 0 4px}
+  .mode{display:flex; gap:10px; align-items:flex-start; font-size:14px}
+  .mchip{
+    flex:none; font-size:11px; font-weight:800; letter-spacing:.04em; padding:3px 9px; border-radius:999px;
+    margin-top:1px;
+  }
+  .mchip.now{background:color-mix(in srgb,var(--green) 20%,var(--surface)); color:var(--green)}
+  .mchip.next{background:color-mix(in srgb,var(--ink-faint) 20%,var(--surface)); color:var(--ink-soft)}
+  .mode .mtxt{color:var(--ink-soft)} .mode .mtxt b{color:var(--ink)}
+
+  /* tech tags (monospace) */
+  .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:12px}
+  .tags code{
+    font-family:ui-monospace,"Cascadia Mono","Consolas",monospace;
+    font-size:11.5px; background:var(--mono-bg); color:var(--mono-ink);
+    padding:3px 8px; border-radius:6px; border:1px solid color-mix(in srgb,var(--mono-ink) 18%,transparent);
+    white-space:nowrap;
+  }
+
+  /* ---------- connector ---------- */
+  .link{position:relative; height:62px; display:grid; place-items:center}
+  .link .pipe{
+    position:absolute; top:0; bottom:0; width:3px; left:calc(20px + 26px - 1.5px);
+    background:linear-gradient(var(--pipe),var(--pipe)); border-radius:3px; overflow:hidden;
+  }
+  .link .pkt{
+    position:absolute; left:-1.5px; width:6px; height:6px; border-radius:50%;
+    background:var(--accent); box-shadow:0 0 8px var(--accent);
+    animation:drop 2.4s linear infinite;
+  }
+  @keyframes drop{0%{top:-8px;opacity:0}12%{opacity:1}88%{opacity:1}100%{top:100%;opacity:0}}
+  .link .proto{
+    position:relative; z-index:2; margin-left:64px;
+    font-family:ui-monospace,"Cascadia Mono","Consolas",monospace; font-size:12px;
+    background:var(--surface-2); color:var(--ink-soft);
+    border:1px solid var(--line); border-radius:999px; padding:5px 13px;
+    display:inline-flex; align-items:center; gap:8px; box-shadow:var(--shadow);
+  }
+  .proto .arrow{color:var(--accent); font-weight:800}
+
+  /* ---------- cloud layer (main + backup branch) ---------- */
+  .layer-label{
+    text-align:center; font-size:12px; font-weight:700; letter-spacing:.08em;
+    color:var(--ink-faint); text-transform:uppercase; margin:2px 0 13px;
+  }
+  .cloud{display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start}
+  .box{
+    background:var(--surface); border:1px solid var(--line); border-radius:15px;
+    padding:16px 17px; box-shadow:var(--shadow); border-top:4px solid var(--c,var(--accent));
+  }
+  .box.backup{border-style:dashed; background:var(--surface-2)}
+  .bhead{display:flex; align-items:center; gap:9px; margin-bottom:9px}
+  .bicon{font-size:22px; line-height:1}
+  .box .mchip{font-size:11px; font-weight:800; letter-spacing:.03em; padding:3px 10px; border-radius:999px}
+  .box .mchip.main{background:color-mix(in srgb,var(--green) 20%,var(--surface)); color:var(--green)}
+  .box .mchip.bk{background:color-mix(in srgb,var(--ink-faint) 22%,var(--surface)); color:var(--ink-soft)}
+  .box .n-title{font-size:16px; margin:0}
+  .box .n-en{font-size:11.5px; margin:1px 0 8px}
+  .box .n-body{font-size:13.5px}
+  @media (max-width:560px){ .cloud{grid-template-columns:1fr} }
+
+  /* ---------- footer note ---------- */
+  .foot{
+    margin-top:30px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:14px; padding:18px 20px; font-size:13.5px; color:var(--ink-soft);
+    display:grid; gap:8px;
+  }
+  .foot h4{margin:0 0 2px; font-size:13px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-faint); font-weight:700}
+  .foot .row{display:flex; gap:9px; align-items:baseline}
+  .foot .row .k{color:var(--accent); font-weight:800; flex:none}
+  .credit{margin-top:22px; text-align:center; font-size:12.5px; color:var(--ink-faint)}
+
+  @media (max-width:560px){
+    .node{grid-template-columns:44px 1fr; gap:13px; padding:18px 16px 18px 15px}
+    .marker{width:44px;height:44px;font-size:22px}
+    .link .pipe{left:calc(15px + 22px - 1.5px)}
+    .link .proto{margin-left:52px}
+    .tags code{font-size:11px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .link .pkt{animation:none; top:calc(50% - 3px); opacity:1}
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Real-time Marine Water Quality Buoy · โปรเจคจบ</p>
+    <h1>แผนผังการทำงานของระบบ</h1>
+    <p class="lede">เส้นทางข้อมูลจาก “หัววัดใต้น้ำ” ไปจนถึง “หน้าจอแสดงผลแบบเรียลไทม์” — ทุกครั้งที่เซนเซอร์อ่านค่า ข้อมูลจะไหลผ่าน 5 สเตจนี้ภายในไม่กี่วินาที</p>
+    <div class="legend">
+      <span><b></b> เส้นทางข้อมูล (ทำงานแล้ว)</span>
+      <span><b class="dashed"></b> ส่วนที่จะเปลี่ยนตอนลงภาคสนาม</span>
+    </div>
+  </header>
+
+  <div class="flow">
+
+    <!-- 1 -->
+    <section class="node" style="--c:var(--blue)">
+      <div class="marker"><span class="stage">1</span>🔬</div>
+      <div>
+        <h3 class="n-title">เซนเซอร์ตรวจวัดคุณภาพน้ำ</h3>
+        <p class="n-en">Multi-parameter Sensor</p>
+        <p class="n-body">หัววัดจุ่มใต้น้ำ อ่านค่าจาก probe ที่ติดตั้งจริง <span class="params">8 ค่า</span> — ออกซิเจนละลายน้ำ, อุณหภูมิ, pH, ความเค็ม, การนำไฟฟ้า, TDS, %อิ่มตัวออกซิเจน, ความขุ่น</p>
+        <div class="tags">
+          <code>Modbus RTU</code><code>9600 8N1</code><code>addr 0x01</code><code>reg 0x2600</code><code>IEEE754 float (DCBA)</code>
+        </div>
+      </div>
+    </section>
+
+    <div class="link"><span class="pipe"><i class="pkt"></i></span>
+      <span class="proto"><span class="arrow">↓</span> RS485 · สาย A / B / GND (กราวด์ร่วม)</span></div>
+
+    <!-- 2 -->
+    <section class="node" style="--c:var(--warm)">
+      <div class="marker"><span class="stage">2</span>🧠</div>
+      <div>
+        <h3 class="n-title">หน่วยอ่านค่า &amp; ส่งข้อมูล</h3>
+        <p class="n-en">Edge Reader / Uplink</p>
+        <p class="n-body">ส่งคำสั่ง Modbus ไปอ่านทะเบียน 0x2600 (44 ไบต์ = 11 float) แล้วถอดค่า จับคู่เป็น 8 พารามิเตอร์ ก่อนยิงขึ้นคลาวด์</p>
+        <div class="modes">
+          <div class="mode"><span class="mchip now">ตอนนี้</span><span class="mtxt"><b>USB-RS485 → คอมพิวเตอร์</b> รันสคริปต์ Python (<code style="font-family:ui-monospace,Consolas,monospace">sensor_to_supabase.py</code>) — พิสูจน์ทั้งวงจรได้โดยยังไม่ต้องมี ESP32</span></div>
+          <div class="mode"><span class="mchip next">ภาคสนาม</span><span class="mtxt"><b>ESP32 + โมดูล 4G</b> (LilyGO A7670) จ่ายไฟด้วยแบต 12V + โซลาร์ — ลอยกลางทะเลส่งเองอัตโนมัติ <b>พร้อม GPS ในตัว</b> จับพิกัดทุ่น (lat/lon) ส่งไปด้วย</span></div>
+        </div>
+        <div class="tags"><code>read 44 bytes → 11 float</code><code>map → 8 params</code><code>GNSS/GPS → lat, lon</code><code>JSON</code></div>
+      </div>
+    </section>
+
+    <div class="link"><span class="pipe"><i class="pkt"></i></span>
+      <span class="proto"><span class="arrow">↓</span> HTTPS POST (JSON) · ส่งไปยังแหล่งที่เลือก</span></div>
+
+    <!-- 3 : ชั้นคลาวด์ — แผนหลัก + แผนสำรอง -->
+    <div class="layer-label">☁ สเตจ 3 · ชั้นคลาวด์ — เลือกใช้ 1 แหล่ง (สลับที่ CONFIG.mode)</div>
+    <div class="cloud">
+      <section class="box main" style="--c:var(--green)">
+        <div class="bhead"><span class="bicon">🗄️</span><span class="mchip main">แผนหลัก</span></div>
+        <h3 class="n-title">Supabase</h3>
+        <p class="n-en">PostgreSQL · Realtime</p>
+        <p class="n-body">เก็บทุกการวัดลงตาราง <span class="params">readings</span> (1 แถว = 1 ครั้ง) + คอลัมน์ <span class="params">lat/lon</span> เก็บพิกัด GPS · เปิด Realtime ให้หน้าจออัปเดตสด</p>
+        <div class="tags"><code>table: readings</code><code>RLS</code><code>Realtime</code><code>lat, lon</code></div>
+      </section>
+      <section class="box backup" style="--c:var(--violet)">
+        <div class="bhead"><span class="bicon">🖥️</span><span class="mchip bk">แผนสำรอง</span></div>
+        <h3 class="n-title">Server อาจารย์</h3>
+        <p class="n-en">PHP + MySQL</p>
+        <p class="n-body">โครงสร้างข้อมูลชุดเดียวกัน · ESP32 ยิง HTTP JSON เข้า API ของอาจารย์ · ใช้เมื่อ Supabase ล่ม/ต้องเก็บในเครื่องเอง</p>
+        <div class="tags"><code>PHP API</code><code>MySQL</code><code>HTTP JSON</code><code>polling</code></div>
+      </section>
+    </div>
+
+    <div class="link"><span class="pipe"><i class="pkt"></i></span>
+      <span class="proto"><span class="arrow">↓</span> Dashboard อ่านตาม CONFIG.mode · Realtime หรือ Polling</span></div>
+
+    <!-- 4 -->
+    <section class="node" style="--c:var(--accent)">
+      <div class="marker"><span class="stage">4</span>📊</div>
+      <div>
+        <h3 class="n-title">แดชบอร์ดแสดงผล</h3>
+        <p class="n-en">Web Dashboard · Render</p>
+        <p class="n-body">สมัครรับข้อมูลสด พอมีแถวใหม่การ์ดอัปเดตทันที แสดง <span class="params">8 การ์ด</span> + กราฟย้อนหลัง + ตาราง/CSV และมี <span class="params">AI ช่วยวิเคราะห์</span></p>
+        <div class="tags"><code>ดัชนีคุณภาพน้ำ WQI</code><code>พยากรณ์แนวโน้ม</code><code>ตรวจค่าผิดปกติ</code><code>แจ้งเตือน</code><code>ตำแหน่งทุ่น (GPS)</code><code>สถานะ ออนไลน์/ค้าง</code></div>
+      </div>
+    </section>
+
+    <div class="link"><span class="pipe"><i class="pkt"></i></span>
+      <span class="proto"><span class="arrow">↓</span> เปิดผ่านเบราว์เซอร์ (มือถือ / คอม)</span></div>
+
+    <!-- 5 -->
+    <section class="node" style="--c:var(--violet)">
+      <div class="marker"><span class="stage">5</span>👀</div>
+      <div>
+        <h3 class="n-title">ผู้ใช้งานเฝ้าดูคุณภาพน้ำ</h3>
+        <p class="n-en">Monitoring</p>
+        <p class="n-body">ดูค่าคุณภาพน้ำทะเลแบบเรียลไทม์ได้จากทุกที่ เห็นแนวโน้ม รับการแจ้งเตือนเมื่อค่าผิดปกติ — ใช้ตัดสินใจ/เฝ้าระวังสิ่งแวดล้อมชายฝั่ง</p>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="foot">
+    <h4>หมายเหตุการอ่านแผนผัง</h4>
+    <div class="row"><span class="k">สเตจ 2</span><span>คือหัวใจที่กำลังพัฒนา — “ตอนนี้” ใช้คอมพิวเตอร์อ่านผ่าน USB เพื่อทดสอบ ส่วน “ภาคสนาม” จะย้ายไป ESP32 + 4G โดย Supabase และ Dashboard ไม่ต้องแก้อะไรเลย</span></div>
+    <div class="row"><span class="k">GPS</span><span>โมดูล 4G รุ่น A7670 มี GPS ในตัว จับพิกัดทุ่น (lat/lon) ส่งไปเก็บคู่กับค่าน้ำ แล้วแสดงเป็นการ์ด “ตำแหน่งทุ่น” บน Dashboard — รู้ว่าค่านี้มาจากจุดไหนในทะเล</span></div>
+    <div class="row"><span class="k">แผนสำรอง</span><span>ถ้า Supabase มีปัญหา สลับ <code style="font-family:ui-monospace,Consolas,monospace">CONFIG.mode = server</code> ให้ Dashboard ไปอ่านจาก Server อาจารย์ (PHP+MySQL) ที่เก็บข้อมูลชุดเดียวกัน — ไม่ต้องแก้โค้ดส่วนอื่น</span></div>
+    <div class="row"><span class="k">เรียลไทม์</span><span>จุดที่วิ่งบนเส้นท่อแทน “ข้อมูล 1 ชุด” ที่ไหลจากเซนเซอร์ถึงหน้าจอ ใช้เวลารวมเพียงไม่กี่วินาที</span></div>
+  </div>
+
+  <p class="credit">ระบบทุ่นตรวจวัดสภาพน้ำทางทะเลแบบเรียลไทม์ · Sensor → Edge → Supabase → Dashboard</p>
+</div>
