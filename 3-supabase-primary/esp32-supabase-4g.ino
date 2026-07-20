@@ -1,15 +1,14 @@
 /* =========================================================================
    esp32-supabase-4g.ino
-   ส่งค่าขึ้น Supabase ผ่าน "โมดูล 4G" (LilyGO T-A7670G) — ไม่ใช่ WiFi
-   ใช้ TinyGSM คุยกับโมเด็ม A7670 แล้วยิง HTTPS POST เข้า Supabase REST
+   บอร์ด: LilyGO T-Call-A7670 V1.0 (โมดูล A7670E) — ส่งค่าขึ้น Supabase ผ่าน 4G
+   + อ่านพิกัด GPS + แจ้งเตือนวิกฤตเข้า Telegram (ทั้งหมดผ่าน HTTP-app ในตัวโมเด็ม)
 
-   📦 ต้องติดตั้งไลบรารี (Arduino IDE > Library Manager):
-      - "TinyGSM"  โดย Volodymyr Shymanskyy   (แนะนำเวอร์ชันล่าสุด — รองรับ A7670)
-        ถ้าตัวใน Library Manager เก่า ให้ลงจาก GitHub: github.com/vshymanskyy/TinyGSM
-      - (ออปชัน) "StreamDebugger" ไว้ดู AT command ตอน debug
+   📦 ไลบรารี (Arduino IDE > Library Manager): "TinyGSM" โดย Volodymyr Shymanskyy
+      - ใช้ macro TINY_GSM_MODEM_A7672X (ครอบคลุม A7670E) — ไลบรารีต้องอยู่ path อังกฤษ (C:\Arduino)
 
-   🔌 ต่อสาย: ใช้บอร์ด LilyGO T-A7670G (ESP32+โมเด็ม+ซิม+GPS ในตัว) เสียบเสา LTE + GPS + ซิม
-   ⚡ ไฟ: จ่ายจากพอร์ต USB หรือแบต LiPo/โซลาร์เข้าช่องของบอร์ด (โมเด็มกินไฟพีคสูง ต้องไฟแน่น)
+   🔌 ต่อ: เสา LTE→MAIN, เสา GPS→GPS, ซิม nano (ปิด PIN lock), APN=internet (AIS)
+   ⚡ ไฟ: โมเด็มกินไฟพีคสูง — ควรเสียบแบต LiPo (USB อย่างเดียวอาจไม่พอตอนยิง 4G)
+   🔑 HTTPS ใช้ได้เพราะเปิด SNI ใน SSL context (Supabase/Telegram อยู่หลัง Cloudflare)
 
    ทดสอบ: ส่งค่าปลอมทุก 15 วิ — ดู Serial Monitor 115200 (ควรได้ HTTP 201)
    ========================================================================= */
@@ -28,12 +27,11 @@ const char GPASS[]= "";
 #define SB_ANON  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqYnJnb2x1bGdna3N4bnVpY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjc0ODAsImV4cCI6MjA5ODg0MzQ4MH0.0coKRuYMMOwLq9yJFsOff99ya9RBwyLBzqxN2YU1JWg"
 #define DEVICE_ID "buoy-01"
 
-// ===== LINE Messaging API (แจ้งเตือนวิกฤต — ESP32 ยิงตรง) =====
-// วิธีเอา token/id: ดู 5-extensions/02-alerts-notification.md (สร้าง LINE Official Account + Channel)
-#define LINE_ENABLE   1                          // 0 = ปิดแจ้งเตือน LINE
-#define LINE_HOST     "api.line.me"
-#define LINE_TOKEN    "ใส่_CHANNEL_ACCESS_TOKEN" // จาก LINE Developers > Messaging API
-#define LINE_TO       "ใส่_userId_หรือ_groupId"  // ปลายทางที่จะ push หา (ตัวเอง/กลุ่ม)
+// ===== Telegram Bot (แจ้งเตือนวิกฤต — ESP32 ยิงตรง) =====
+// วิธีเอา token/chat_id: ดู 5-extensions/02-alerts-notification.md (ทัก @BotFather 5 นาที)
+#define TG_ENABLE   1                     // 0 = ปิดแจ้งเตือน Telegram
+#define TG_TOKEN    "ใส่_BOT_TOKEN"        // จาก @BotFather (รูปแบบ 123456789:ABCdef...)
+#define TG_CHAT     "ใส่_CHAT_ID"          // chat id ของคุณ/กลุ่ม (ดูจาก getUpdates)
 const unsigned long ALERT_COOLDOWN = 30UL*60UL*1000UL;  // กันเตือนซ้ำ 30 นาที/รายการ
 
 // ---- ขา LilyGO T-Call-A7670 V1.0 (RX=25, RST=27 ต่างจากรุ่น T-A7670! อ้างอิง utilities.h ของ LilyGO) ----
@@ -44,8 +42,7 @@ const unsigned long ALERT_COOLDOWN = 30UL*60UL*1000UL;  // กันเตือ
 #define PIN_RST       27      // reset (V1.0 = 27, active LOW)
 // ======================================================
 
-TinyGsm        modem(SerialAT);
-TinyGsmClientSecure client(modem);    // client แบบ SSL (สำหรับ HTTPS)
+TinyGsm        modem(SerialAT);        // ส่ง HTTPS ผ่าน HTTP-app ในตัวโมเด็ม (ไม่ใช้ TLS socket)
 
 unsigned long lastSend = 0;
 float rnd(float lo, float hi){ return lo + (random(0,1000)/1000.0)*(hi-lo); }
@@ -73,25 +70,26 @@ bool connect4G(){
   return true;
 }
 
-// ================= LINE แจ้งเตือน =================
-// push ข้อความเข้า LINE ผ่าน Messaging API (HTTPS) — ใช้ client SSL ตัวเดียวกับ Supabase
-bool pushLine(const String& text){
-  if(!client.connect(LINE_HOST, 443)){ Serial.println("LINE: ❌ ต่อไม่ได้"); return false; }
-  String payload = String("{\"to\":\"") + LINE_TO +
-                   "\",\"messages\":[{\"type\":\"text\",\"text\":\"" + text + "\"}]}";
-  client.print(F("POST /v2/bot/message/push HTTP/1.1\r\n"));
-  client.print(F("Host: " LINE_HOST "\r\n"));
-  client.print(F("Authorization: Bearer " LINE_TOKEN "\r\n"));
-  client.print(F("Content-Type: application/json\r\n"));
-  client.print("Content-Length: " + String(payload.length()) + "\r\n");
-  client.print(F("Connection: close\r\n\r\n"));
-  client.print(payload);
-  unsigned long t0 = millis(); String status = "";
-  while(millis()-t0 < 10000 && !client.available()) delay(10);
-  if(client.available()) status = client.readStringUntil('\n');
-  client.stop();
-  bool ok = status.indexOf("200") >= 0;
-  Serial.println(ok ? "LINE: ✅ ส่งแล้ว" : "LINE: ⚠️ " + status + " (เช็ค token/userId/quota)");
+// ================= Telegram แจ้งเตือน =================
+// ส่งข้อความเข้า Telegram ผ่าน HTTP application ในตัวโมเด็ม (เสถียรกับ A7670E — ใช้ atCmd/waitFor ด้านล่าง)
+bool sendTelegram(const String& text){
+  String body = String("{\"chat_id\":\"") + TG_CHAT + "\",\"text\":\"" + text + "\"}";
+  atCmd("AT+HTTPTERM", 800);
+  if(atCmd("AT+HTTPINIT", 3000).indexOf("OK") < 0){ Serial.println("TG: HTTPINIT fail"); return false; }
+  atCmd("AT+HTTPPARA=\"URL\",\"https://api.telegram.org/bot" TG_TOKEN "/sendMessage\"", 2000);
+  atCmd("AT+HTTPPARA=\"CONTENT\",\"application/json\"", 1500);
+  atCmd("AT+HTTPPARA=\"SSLCFG\",0", 1500);                    // ใช้ SSL context 0 (เปิด SNI ไว้แล้วใน setup)
+  while(SerialAT.available()) SerialAT.read();
+  SerialAT.println("AT+HTTPDATA=" + String(body.length()) + ",10000");
+  if(waitFor("DOWNLOAD", 3000).indexOf("DOWNLOAD") < 0){ atCmd("AT+HTTPTERM",800); return false; }
+  SerialAT.print(body);
+  waitFor("OK", 5000);
+  while(SerialAT.available()) SerialAT.read();
+  SerialAT.println("AT+HTTPACTION=1");
+  String r = waitFor("+HTTPACTION:", 20000);
+  atCmd("AT+HTTPTERM", 1500);
+  bool ok = r.indexOf(",200,") >= 0;                          // Telegram ตอบ 200 = ส่งสำเร็จ
+  Serial.println(ok ? "TG: ✅ ส่งแล้ว" : "TG: ⚠️ " + r + " (เช็ค BOT_TOKEN/CHAT_ID)");
   return ok;
 }
 
@@ -103,10 +101,10 @@ bool canAlert(int i){
   return false;
 }
 
-// ตรวจเกณฑ์วิกฤต (โฟกัสค่าที่อันตรายจริง) แล้ว push LINE ทีเดียวรวมทุกข้อ
+// ตรวจเกณฑ์วิกฤต (โฟกัสค่าที่อันตรายจริง) แล้วส่ง Telegram ทีเดียวรวมทุกข้อ
 void checkAndAlert(float doVal, float ph, float temp, float turb){
-#if LINE_ENABLE
-  String lines = "";                              // "\\n" = ขึ้นบรรทัดใหม่ใน LINE
+#if TG_ENABLE
+  String lines = "";                              // "\\n" = ขึ้นบรรทัดใหม่ใน Telegram
   if(doVal < 3.0  && canAlert(0)){ lines += "\\n🔴 ออกซิเจนละลายน้ำต่ำวิกฤต: "; lines += String(doVal,2); lines += " mg/L (สัตว์น้ำเสี่ยงตาย)"; }
   if(ph    < 7.0  && canAlert(1)){ lines += "\\n🔴 น้ำเป็นกรดผิดปกติ: pH ";      lines += String(ph,2); }
   if(ph    > 9.0  && canAlert(2)){ lines += "\\n🔴 น้ำเป็นด่างผิดปกติ: pH ";     lines += String(ph,2); }
@@ -115,7 +113,7 @@ void checkAndAlert(float doVal, float ph, float temp, float turb){
   if(lines.length() > 0){
     String msg = "🌊 แจ้งเตือนคุณภาพน้ำ (" DEVICE_ID ")";
     msg += lines;
-    pushLine(msg);
+    sendTelegram(msg);
   }
 #endif
 }
@@ -252,7 +250,7 @@ void loop(){
   if(code == 201 || code == 200) Serial.println(" ✅ insert สำเร็จ (" + String(code) + ")\n  " + body);
   else Serial.println(" ⚠️ HTTP " + String(code) + " (401/403=key/RLS, 400=คอลัมน์, ติดลบ=SSL/เน็ต)");
 
-  // ตรวจเกณฑ์วิกฤต แล้วแจ้งเตือน LINE (ยิงตรงจาก ESP32)
+  // ตรวจเกณฑ์วิกฤต แล้วแจ้งเตือน Telegram (ยิงตรงจาก ESP32)
   checkAndAlert(doVal, ph, temp, turb);
 }
 

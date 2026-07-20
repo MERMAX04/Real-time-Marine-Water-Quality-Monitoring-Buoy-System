@@ -29,8 +29,8 @@
 | **2-dashboard/** | หน้าเว็บแสดงผล (สลับแหล่งข้อมูลได้ mock/supabase/server) |
 | **3-supabase-primary/** | ★ แผนหลัก ★ schema.sql + โค้ด ESP32 (4G / WiFi test / GPS test) |
 | **4-server-backup/** | แผนสำรอง: PHP+MySQL API + โค้ด ESP32 |
-| **5-extensions/** | ต่อยอด: AI ผู้ช่วย, แจ้งเตือน LINE, เทรนด์, หลายทุ่น |
-| **docs/** | แผนผังระบบ + ดีไซน์ LINE Rich Menu |
+| **5-extensions/** | ต่อยอด: AI ผู้ช่วย, แจ้งเตือน Telegram, เทรนด์, หลายทุ่น |
+| **docs/** | แผนผังการทำงานของระบบ (system-flowchart.html) |
 
 > 🔄 **สลับ Supabase ↔ Server?** → [SWITCHING-GUIDE.md](SWITCHING-GUIDE.md)
 
