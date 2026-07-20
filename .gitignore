@@ -13,17 +13,9 @@ desktop.ini
 __pycache__/
 *.pyc
 
-# ===== เครื่องมือชั่วคราวของ Python =====
-1-sensor-tools/dash_check.js
+# ===== คู่มือ PDF (ไฟล์ใหญ่ ~60MB) — ไม่ commit เพื่อให้ repo เบา =====
+# ถ้าอยากเก็บคู่มือใน repo ด้วย ให้ลบบรรทัดนี้ออก
+0-manuals/*.pdf
 
-# ===== คู่มือ PDF (ไฟล์ใหญ่รวม ~60MB) — ไม่ commit เพื่อให้ repo เบา =====
-# ถ้าอยากเก็บคู่มือใน repo ด้วย ให้ลบ 2 บรรทัดนี้ออก
-Guide files/*.pdf
-Guide files/_sensor_text.txt
-
-# ===== รูปปลาต้นฉบับ (ใช้ก๊อปที่ 2-dashboard/fish/ แทน) =====
-/PNG/
-
-# Arduino build-copy folders (duplicate of .ino)
+# ===== โฟลเดอร์สำเนาที่ Arduino IDE สร้าง (ซ้ำกับ .ino ตัวจริง) =====
 3-supabase-primary/Buoy_4G/
-3-supabase-primary/esp32-supabase-4g/

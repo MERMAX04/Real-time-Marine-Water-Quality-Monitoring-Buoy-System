@@ -1,35 +1,38 @@
-# 1-sensor-tools — เครื่องมือแก้ปัญหาอ่านค่า sensor (RS485/Modbus)
+# 1-sensor-tools — เครื่องมืออ่านค่า sensor (RS485/Modbus) บน PC
 
-ใช้ตอน "ส่งคำสั่งไปแล้ว sensor ไม่ตอบ" รันบน PC ผ่าน RS485-to-USB (ยังไม่ต้องใช้ ESP32)
+รันบน PC ผ่าน **USB-to-RS485** (ยังไม่ต้องใช้ ESP32) — ใช้ทดสอบ/อ่านค่า sensor จริง
+> ✅ ทดสอบแล้วอ่านค่าได้จริง (พอร์ต COM9 ชิป CH343) — ดูบันทึกใน [[SENSOR-PROTOCOL.md]]
 
 ## ติดตั้งครั้งเดียว
 ```
 py -m pip install pyserial
 ```
 
-## ไฟล์
-| ไฟล์ | ใช้ตอนไหน |
+## ไฟล์ (3 ตัว)
+| ไฟล์ | ใช้ทำอะไร |
 |------|-----------|
-| **`read_sensor.py`** ⭐ | **ตัวหลัก** — อ่านค่าจริงทุกตัว + ถอด float ให้เลย (ตั้งค่าตามคู่มือแล้ว) |
-| **`SENSOR-PROTOCOL.md`** | สรุป protocol ครบจากคู่มือ (baud/register/wiring/float) |
-| `rs485_scan.py` | เผื่อ address/baud เพี้ยน — ไล่สแกนหาอัตโนมัติ |
-| `rs485_raw.py`  | ส่ง hex command เฉพาะเจาะจงเอง |
-| `note-troubleshooting.txt` | สรุปวิธีวินิจฉัยฉบับแรก |
+| **`read_sensor.py`** ⭐ | **ตัวหลัก** — สแกน COM port อัตโนมัติ + อ่านค่าทุกตัว + ถอด float + debug ทุกจุด |
+| **`rs485_console.py`** | คอนโซลโต้ตอบ — พิมพ์คำสั่ง Modbus เอง ดู TX/RX ดิบ (เล่น/เจาะทีละ register) |
+| **`sensor_to_supabase.py`** | "สะพาน" — PC อ่าน sensor แล้วส่งขึ้น Supabase (พิสูจน์ทั้ง pipeline โดยไม่ต้องมี ESP32) |
+| `SENSOR-PROTOCOL.md` | สรุป protocol ครบจากคู่มือ (baud/register/wiring/float order) |
 
-## ⚡ ค่าที่ได้จากคู่มือ (ดูละเอียดใน SENSOR-PROTOCOL.md)
-- Modbus RTU **9600 8N1**, address **0x01**
-- อ่านทุกค่า: `01 03 26 00 00 16 CF 4C`
-- **ต่อสาย:** 🔴แดง=VCC→ไฟ 12–24V·≥1A  ⚫ดำ=GND→ไฟ−**และ GND adapter**  🟢เขียว=A  ⚪ขาว=B
+## การต่อสาย (จุดที่ทำให้ "ไม่ตอบ")
+🔴 แดง=VCC→ไฟ **12–24V ≥1A**  ⚫ ดำ=GND→ไฟ− **และ GND ของ adapter (กราวด์ร่วม!)**  🟢 เขียว=485_A→A  ⚪ ขาว=485_B→B
 
 ## วิธีใช้
 ```
-py rs485_scan.py           # ลิสต์พอร์ต COM ที่มี
-py rs485_scan.py COM3      # สแกนหาที่ COM3
+py read_sensor.py                 # สแกนหา sensor อัตโนมัติแล้วอ่านเลย
+py read_sensor.py COM9            # ระบุพอร์ตตรงๆ (ถ้าสแกนช้าเพราะพอร์ต Bluetooth)
+py rs485_console.py COM9          # เปิดคอนโซลพิมพ์คำสั่งเอง (all/do/ph/temp/... )
+py sensor_to_supabase.py COM9 5   # อ่านค่าจริงส่งขึ้น Supabase ทุก 5 วิ
 ```
 
-## อ่านผล
-- เจอ `[GOT]` → สาย+โปรโตคอลถูก จดค่า baud/addr/parity ไว้
-- เจอ `EXCEPTION` → sensor คุยได้แล้ว แค่ register ผิด
-- เงียบสนิท → ปัญหาที่สาย: สลับ A↔B, เช็ค GND, เช็คไฟเลี้ยง
+## อ่านผล (read_sensor.py จะบอก step-by-step)
+- ได้ค่าครบในช่วงสมเหตุสมผล → อ่านสำเร็จ ✅
+- `EXCEPTION` → สาย+โปรโตคอลถูก แค่ register ผิด
+- เงียบสนิท → ปัญหาที่สาย: สลับ A↔B, เช็ค GND ร่วม, เช็คไฟ 12V
 
-รายละเอียดใน `note-troubleshooting.txt`
+## โปรโตคอล (ย่อ — ละเอียดใน SENSOR-PROTOCOL.md)
+- Modbus RTU **9600 8N1**, address **0x01**
+- อ่านทุกค่า: `01 03 26 00 00 16 CF 4C` (register 0x2600, 44 ไบต์ = 11 float)
+- float = **IEEE754 little-endian (DCBA)**
