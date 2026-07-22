@@ -4,6 +4,10 @@
 *.key
 secrets.php
 config.local.php
+# สคริปต์ตั้ง secret ที่มี token จริง (Supabase/Telegram)
+*.local.ps1
+*.local.sh
+set-secrets.local.*
 
 # ===== ไฟล์ระบบ/ชั่วคราว =====
 .DS_Store
@@ -21,3 +25,8 @@ __pycache__/
 # Arduino ต้องการให้ .ino อยู่ในโฟลเดอร์ชื่อเดียวกัน -> มันสร้างสำเนาเป็นโฟลเดอร์
 # บรรทัดนี้กันไม่ให้สำเนาพวกนั้นขึ้น repo (เก็บแค่ .ino ตัวจริงที่วางแบนไว้)
 3-supabase-primary/*/
+
+# ===== Supabase CLI: ไฟล์ state เฉพาะเครื่อง (ไม่ใช่ source) — ห้าม commit =====
+supabase/.temp/
+supabase/.branches/
+

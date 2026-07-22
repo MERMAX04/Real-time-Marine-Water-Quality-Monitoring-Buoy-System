@@ -1,0 +1,94 @@
+<?php
+/* =========================================================================
+   lib/telegram.php  —  Telegram ฝั่ง server (ใช้ร่วมโดย save.php และ tg-webhook.php)
+   ส่งข้อความ + ประเมินเกณฑ์วิกฤต + กันเตือนซ้ำ (cooldown) + จัดรูป /status
+   ========================================================================= */
+
+const TG_COOLDOWN_SEC = 30 * 60;   // 30 นาที/ชนิด (เท่ากับ ALERT_COOLDOWN เดิมบน ESP32)
+
+// บอทถูกตั้งค่าแล้วหรือยัง
+function tg_ready() {
+    return defined('TELEGRAM_BOT_TOKEN') && TELEGRAM_BOT_TOKEN !== ''
+        && strpos(TELEGRAM_BOT_TOKEN, 'ใส่_') !== 0;
+}
+
+// ส่งข้อความเข้า Telegram (ใช้ cURL ถ้ามี ไม่งั้น fallback file_get_contents)
+function tg_send($chatId, $text) {
+    if (!tg_ready()) return false;
+    $url = "https://api.telegram.org/bot" . TELEGRAM_BOT_TOKEN . "/sendMessage";
+    $payload = ['chat_id' => $chatId, 'text' => $text, 'disable_web_page_preview' => true];
+    if (function_exists('curl_init')) {
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+        ]);
+        $ok = curl_exec($ch) !== false;
+        curl_close($ch);
+        return $ok;
+    }
+    $ctx = stream_context_create(['http' => [
+        'method'  => 'POST',
+        'header'  => 'Content-Type: application/x-www-form-urlencoded',
+        'content' => http_build_query($payload),
+        'timeout' => 10,
+    ]]);
+    return @file_get_contents($url, false, $ctx) !== false;
+}
+
+// ประเมินเกณฑ์วิกฤต (ตรงกับ ESP32/Supabase) -> คืน [[key,text], ...]
+function tg_eval_alerts($r) {
+    $a = [];
+    $do = $r['do_val'] ?? null; $ph = $r['ph'] ?? null;
+    $temp = $r['temp'] ?? null; $turb = $r['turb'] ?? null;
+    if ($do   !== null && $do   < 3.0)  $a[] = ['do',      "🔴 ออกซิเจนละลายน้ำต่ำวิกฤต: " . number_format($do, 2) . " mg/L (สัตว์น้ำเสี่ยงตาย)"];
+    if ($ph   !== null && $ph   < 7.0)  $a[] = ['ph_low',  "🔴 น้ำเป็นกรดผิดปกติ: pH " . number_format($ph, 2)];
+    if ($ph   !== null && $ph   > 9.0)  $a[] = ['ph_high', "🔴 น้ำเป็นด่างผิดปกติ: pH " . number_format($ph, 2)];
+    if ($temp !== null && $temp > 33.0) $a[] = ['temp',    "🟠 อุณหภูมิน้ำสูง: " . number_format($temp, 1) . " °C"];
+    if ($turb !== null && $turb > 40.0) $a[] = ['turb',    "🟠 ความขุ่นสูงผิดปกติ: " . number_format($turb, 1) . " NTU"];
+    return $a;
+}
+
+// cooldown ผ่านตาราง alert_state — คืน true ถ้าพ้น cooldown (แล้วอัปเดตเวลาให้)
+function tg_can_fire($key) {
+    $st = db()->prepare("SELECT last_sent FROM alert_state WHERE k=?");
+    $st->execute([$key]);
+    $row = $st->fetch();
+    if ($row && $row['last_sent'] && strtotime($row['last_sent']) > time() - TG_COOLDOWN_SEC) return false;
+    db()->prepare("REPLACE INTO alert_state (k, last_sent) VALUES (?, NOW())")->execute([$key]);
+    return true;
+}
+
+// เรียกหลัง insert: เช็คเกณฑ์ + ส่งหาทุก subscriber (เงียบถ้ายังไม่ตั้ง token)
+function tg_check_and_alert($device, $r) {
+    if (!tg_ready()) return;
+    $fire = [];
+    foreach (tg_eval_alerts($r) as $al) {
+        if (tg_can_fire($device . ':' . $al[0])) $fire[] = $al[1];
+    }
+    if (!$fire) return;
+    $msg = "🌊 แจ้งเตือนคุณภาพน้ำ (" . $device . ")\n" . implode("\n", $fire);
+    $subs = db()->query("SELECT chat_id FROM tg_subscribers")->fetchAll();
+    foreach ($subs as $s) tg_send($s['chat_id'], $msg);
+}
+
+// จัดรูปข้อความ /status = ค่าน้ำล่าสุดครบทุกตัว
+function tg_fmt_status($r) {
+    if (!$r) return "⏳ ยังไม่มีข้อมูลจากทุ่น (ยังไม่เคยส่งค่าขึ้นมา)";
+    $f = function ($v, $d = 2) { return ($v === null || $v === '') ? '–' : number_format((float)$v, $d); };
+    $m  = "📊 ค่าน้ำล่าสุด (" . ($r['device'] ?? DEVICE_ID) . ")";
+    $m .= "\n🫧 DO: " . $f($r['do_val']) . " mg/L (" . $f($r['do_pct'], 0) . "%)";
+    $m .= "\n🌡 อุณหภูมิ: " . $f($r['temp']) . " °C";
+    $m .= "\n⚗️ pH: " . $f($r['ph']);
+    $m .= "\n🧂 ความเค็ม: " . $f($r['sal']) . " ppt";
+    $m .= "\n⚡ การนำไฟฟ้า: " . $f($r['cond']) . " mS/cm";
+    $m .= "\n💧 TDS: " . $f($r['tds']);
+    $m .= "\n🌫 ความขุ่น: " . $f($r['turb']) . " NTU";
+    if (($r['orp'] ?? null) !== null) $m .= "\n🔬 ORP: " . $f($r['orp'], 1) . " mV";
+    if (($r['lat'] ?? null) !== null && ($r['lon'] ?? null) !== null)
+        $m .= "\n📍 พิกัด: " . $f($r['lat'], 6) . ", " . $f($r['lon'], 6);
+    if ($r['ts'] ?? null) $m .= "\n🕒 " . $r['ts'];
+    return $m;
+}

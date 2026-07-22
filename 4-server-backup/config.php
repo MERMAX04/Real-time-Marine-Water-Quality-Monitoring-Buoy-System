@@ -13,6 +13,11 @@ define('DB_PASS', 'CHANGE_ME');       // รหัสผ่าน DB
 // --- API key กันคนอื่นยิงข้อมูลมั่ว (ESP32 ต้องส่งค่านี้มาด้วย) ---
 define('API_KEY', 'buoy-secret-2026'); // เปลี่ยนเป็นค่าลับของคุณเอง
 
+// --- Telegram (แจ้งเตือน + บอท ทำฝั่ง server แทน ESP32) ---
+define('DEVICE_ID', 'buoy-01');
+define('TELEGRAM_BOT_TOKEN', 'ใส่_BOT_TOKEN');       // ★ จาก @BotFather (123456789:ABC...)
+define('TELEGRAM_WEBHOOK_SECRET', 'buoy-hook-2026'); // ตั้งเองอะไรก็ได้ (ให้ตรงตอน setWebhook)
+
 // --- เชื่อมต่อ DB (ไม่ต้องแก้) ---
 function db() {
     static $pdo = null;

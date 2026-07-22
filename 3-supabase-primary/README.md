@@ -42,14 +42,16 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 | ไฟล์ | ใช้ตอนไหน | เน็ต |
 |------|-----------|------|
 | `esp32-supabase-test.ino` | **ทดสอบบนโต๊ะ** (ก่อนได้โมดูล 4G) | WiFi |
-| `esp32-supabase-4g.ino` | **ของจริงบนทุ่น** | โมดูล 4G (LilyGO T-A7670G) |
+| `esp32-supabase-4g.ino` | **ของจริงบนทุ่น** | โมดูล 4G (LilyGO T-Call-A7670 V1.0 / A7670E) |
 
-**เวอร์ชัน 4G (`esp32-supabase-4g.ino`):**
-- ฮาร์ดแวร์แนะนำ: **LilyGO T-A7670G** (ESP32 + 4G LTE Cat-1 + GPS + จัดการไฟ ในบอร์ดเดียว — เสถียรสุด)
-- ติดตั้งไลบรารี **TinyGSM** (เวอร์ชันล่าสุดจาก GitHub รองรับ A7670)
-- แก้: `APN` ของค่ายซิม (AIS/True=`internet`), host + anon key ใส่ให้แล้ว
-- Supabase เป็น HTTPS → ใช้ `TinyGsmClientSecure` + `setInsecure()` (A7670 รองรับ SSL)
-- 🎯 บอนัส: A7670G มี **GPS** ในตัว — เปิดใช้เอาพิกัดจริงมาโชว์ได้ (ดูคอมเมนต์ท้ายไฟล์)
+**เวอร์ชัน 4G (`esp32-supabase-4g.ino`) — ของจริงบนทุ่น:**
+- ฮาร์ดแวร์: **LilyGO T-Call-A7670 V1.0** (โมดูล A7670E — LTE Cat-1 + GNSS ในตัว)
+  ⚠️ พิน V1.0 ต่างจากรุ่นทั่วไป: TX=26, **RX=25**, PWRKEY=4, **RST=27 (active LOW)**
+- ไลบรารี **TinyGSM** → ใช้ macro `TINY_GSM_MODEM_A7672X` (ครอบคลุม A7670E); ต้องอยู่ path อังกฤษ (`C:\Arduino`)
+- แก้: `APN` ของค่ายซิม (DTAC=`www.dtac.co.th`, AIS/True=`internet`), host + anon key ใส่ให้แล้ว
+- **HTTPS:** A7670E ต่อ TLS socket ไม่เสถียร → ใช้ **HTTP application ในตัวโมเด็ม** (AT+HTTP...) + **เปิด `enableSNI`** (ไม่งั้น error 715 เพราะ Supabase อยู่หลัง Cloudflare)
+- 🎯 **GPS:** A7670E มี GNSS ในตัว — `AT+CGNSSPWR=1` + `AT+CGNSSINFO` เอาพิกัดจริงมาโชว์ (ทำในโค้ดแล้ว)
+- 📲 **แจ้งเตือน/บอท Telegram ไม่อยู่บนทุ่นแล้ว** — ย้ายไปฝั่งคลาวด์ (ดู [`../supabase/`](../supabase/)) ทุ่นแค่อ่าน sensor แล้ว POST
 
 **ผลที่ควรได้ (ทั้ง 2 เวอร์ชัน):** Serial Monitor ขึ้น **HTTP 201** = insert สำเร็จ
 - **401/403** = RLS หรือ anon key ผิด (เช็ค schema.sql รันครบ)
@@ -61,7 +63,7 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 ## ⚠️ 3 จุดที่วางแผนไว้แล้ว (กันเสียเวลาทีหลัง)
 | จุด | จัดการแล้วที่ |
 |-----|--------------|
-| **HTTPS** บน ESP32 | `client.setInsecure()` ในโค้ด .ino |
+| **HTTPS** บน ESP32 | HTTP-app ในตัวโมเด็ม + `enableSNI` (ไม่ใช่ TLS socket) |
 | **RLS** (ไม่งั้น 403) | policy anon insert/read ใน `schema.sql` |
 | **anon key** | ใช้ public key + RLS จำกัดสิทธิ์ |
 
