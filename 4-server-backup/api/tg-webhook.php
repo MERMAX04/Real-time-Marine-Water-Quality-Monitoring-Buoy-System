@@ -29,16 +29,20 @@ $device = defined('DEVICE_ID') ? DEVICE_ID : 'buoy-01';
 try {
     if ($cmd === '/start') {
         db()->prepare("REPLACE INTO tg_subscribers (chat_id) VALUES (?)")->execute([(string)$chatId]);
-        tg_send($chatId, "✅ สมัครรับแจ้งเตือนคุณภาพน้ำจากทุ่น $device เรียบร้อย!\nพิมพ์ /status ดูค่าล่าสุด · /stop เพื่อยกเลิก");
+        tg_send($chatId, "✅ สมัครรับแจ้งเตือนคุณภาพน้ำจากทุ่น $device เรียบร้อย!\n/swim – ลงเล่นน้ำได้ไหม · /status – ค่าล่าสุด · /stop – ยกเลิก");
     } elseif ($cmd === '/status') {
         $st = db()->prepare("SELECT * FROM readings WHERE device=? ORDER BY ts DESC LIMIT 1");
         $st->execute([$device]);
         tg_send($chatId, tg_fmt_status($st->fetch()));
+    } elseif ($cmd === '/swim') {
+        $st = db()->prepare("SELECT * FROM readings WHERE device=? ORDER BY ts DESC LIMIT 1");
+        $st->execute([$device]);
+        tg_send($chatId, tg_fmt_swim($st->fetch(), tg_baseline_sal($device)));   // baseline ไม่รวมแถวที่กำลังประเมิน
     } elseif ($cmd === '/stop' || $cmd === '/unsubscribe') {
         db()->prepare("DELETE FROM tg_subscribers WHERE chat_id=?")->execute([(string)$chatId]);
         tg_send($chatId, "🛑 ยกเลิกรับแจ้งเตือนแล้ว (พิมพ์ /start เพื่อสมัครใหม่ได้ทุกเมื่อ)");
     } elseif ($cmd === '/help' || $cmd === '/menu') {
-        tg_send($chatId, "🤖 คำสั่งทุ่น $device:\n/status – ดูค่าน้ำล่าสุดทุกค่า\n/start – สมัครรับแจ้งเตือน\n/stop – ยกเลิก\n/help – เมนูนี้\n\n(ระบบจะเด้งเตือนเองเมื่อค่าน้ำเข้าขั้นวิกฤต)");
+        tg_send($chatId, "🤖 คำสั่งทุ่น $device:\n/swim – ลงเล่นน้ำได้ไหม (ธงเขียว/เหลือง/แดง)\n/status – ดูค่าน้ำล่าสุดทุกค่า\n/start – สมัครรับแจ้งเตือน\n/stop – ยกเลิก\n/help – เมนูนี้\n\n(ระบบจะเด้งเตือนเองเมื่อค่าน้ำวิกฤต หรือขึ้นธงแดง)");
     }
 } catch (Throwable $e) {
     error_log('tg-webhook: ' . $e->getMessage());

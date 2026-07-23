@@ -61,6 +61,7 @@ Supabase Studio → **Database → Webhooks → Create**
 ## ทดสอบ
 1. ทักบอท `/start` → ได้ข้อความต้อนรับ (แถว `tg_subscribers` เพิ่มขึ้น)
 2. พิมพ์ `/status` → บอทตอบค่าล่าสุด **ทันที**
+2b. พิมพ์ `/swim` → บอทตอบ **ธงลงเล่นน้ำ** (เขียว/เหลือง/แดง) + เหตุผล — ดูเกณฑ์ที่ [`5-extensions/05-blueflag-swim-safety.md`](../5-extensions/05-blueflag-swim-safety.md)
 3. ทดสอบเตือน: Studio → SQL Editor รันแทรกค่าที่เข้าเกณฑ์ เช่น
    ```sql
    insert into readings (device, do_val, ph, temp, turb) values ('buoy-01', 2.0, 8.0, 30, 5);

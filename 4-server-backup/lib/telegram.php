@@ -61,15 +61,97 @@ function tg_can_fire($key) {
     return true;
 }
 
-// เรียกหลัง insert: เช็คเกณฑ์ + ส่งหาทุก subscriber (เงียบถ้ายังไม่ตั้ง token)
+/* =========================================================================
+   ธงสถานะการลงเล่นน้ำ (Blue Flag / bathing water)
+   เกณฑ์: คพ.ไทย (นันทนาการ) pH 7.0–8.5, DO ≥ 6 mg/L + Blue Flag ข้อ 3 (ห้ามน้ำทิ้งลงหาด)
+   ⚠️ ตัดสินขาดไม่ได้ — E. coli / Enterococci ต้องตรวจแลป
+   ที่มา/รายละเอียด: 5-extensions/05-blueflag-swim-safety.md
+   ========================================================================= */
+const TG_SWIM_NOTE = "หมายเหตุ: ผลชี้ขาดต้องตรวจ E. coli / Enterococci ในห้องปฏิบัติการ (ทุ่นวัดแบคทีเรียไม่ได้)";
+
+// baseline ความเค็ม = มัธยฐานย้อนหลัง 20 แถว (ตัดแถวล่าสุดออก) เพื่อจับการเปลี่ยนแปลงเฉียบพลัน
+function tg_baseline_sal($device, $skipLatest = true) {
+    $st = db()->prepare("SELECT sal FROM readings WHERE device=? ORDER BY ts DESC LIMIT 20");
+    $st->execute([$device]);
+    $rows = $st->fetchAll();
+    if ($skipLatest) array_shift($rows);
+    $v = [];
+    foreach ($rows as $r) if ($r['sal'] !== null && (float)$r['sal'] > 1) $v[] = (float)$r['sal'];
+    if (count($v) < 3) return null;
+    sort($v);
+    return $v[intdiv(count($v), 2)];
+}
+
+function tg_eval_swim($r, $baseSal) {
+    $red = []; $yellow = [];
+    $g = function ($k) use ($r) { return isset($r[$k]) && $r[$k] !== null && $r[$k] !== '' ? (float)$r[$k] : null; };
+    $do = $g('do_val'); $ph = $g('ph'); $temp = $g('temp'); $turb = $g('turb'); $sal = $g('sal');
+
+    if ($sal !== null && $sal < 1)   // ทุ่นน่าจะไม่ได้อยู่ในน้ำทะเล -> ไม่ตัดสินธง
+        return ['flag'=>'unknown','label'=>'⚪ ยังประเมินไม่ได้','reasons'=>['ความเค็มต่ำมาก — ทุ่นอาจไม่ได้อยู่ในน้ำทะเล']];
+
+    if ($do !== null) {
+        if ($do < 4)     $red[]    = "ออกซิเจนละลายน้ำต่ำมาก " . number_format($do,2) . " mg/L (มาตรฐานนันทนาการ ≥ 6)";
+        elseif ($do < 6) $yellow[] = "ออกซิเจนละลายน้ำ " . number_format($do,2) . " mg/L ต่ำกว่ามาตรฐาน (≥ 6)";
+    }
+    // DO% — เซนเซอร์บางตัวส่งเป็นสัดส่วน (0.90 = 90%) จึง normalize ก่อน
+    $dp = $g('do_pct'); if ($dp !== null && $dp <= 2) $dp = $dp * 100;
+    if ($dp !== null) {
+        if ($dp < 60 || $dp > 130)      $red[]    = "ออกซิเจนอิ่มตัว " . number_format($dp,0) . "% ผิดปกติมาก (ปกติ 80–120%)";
+        elseif ($dp < 80 || $dp > 120)  $yellow[] = "ออกซิเจนอิ่มตัว " . number_format($dp,0) . "% นอกช่วงปกติ (80–120%)";
+    }
+    $cond = $g('cond');   // การนำไฟฟ้าต่ำ = น้ำจืดเจือ (สอดคล้องกับความเค็ม)
+    if ($cond !== null) {
+        if ($cond < 35)     $red[]    = "การนำไฟฟ้าต่ำ " . number_format($cond,1) . " mS/cm (น้ำทะเลปกติ 45–55)";
+        elseif ($cond < 45) $yellow[] = "การนำไฟฟ้า " . number_format($cond,1) . " mS/cm ต่ำกว่าปกติ (45–55)";
+    }
+    if ($ph !== null) {
+        if ($ph < 6.5 || $ph > 9.0)     $red[]    = "pH " . number_format($ph,2) . " นอกช่วงปลอดภัย (6.5–9.0)";
+        elseif ($ph < 7.0 || $ph > 8.5) $yellow[] = "pH " . number_format($ph,2) . " นอกมาตรฐานนันทนาการ (7.0–8.5)";
+    }
+    if ($turb !== null) {
+        if ($turb > 40)     $red[]    = "น้ำขุ่นมาก " . number_format($turb,1) . " NTU — มองไม่เห็นใต้น้ำ";
+        elseif ($turb > 15) $yellow[] = "น้ำขุ่น " . number_format($turb,1) . " NTU — ทัศนวิสัยใต้น้ำแย่";
+    }
+    if ($temp !== null && $temp > 33) $yellow[] = "อุณหภูมิน้ำสูง " . number_format($temp,1) . " °C — แบคทีเรียโตเร็ว";
+    if ($sal !== null && $baseSal && $baseSal > 1) {
+        $drop = ($baseSal - $sal) / $baseSal * 100;
+        if ($drop > 30)     $red[]    = "ความเค็มลดฮวบ " . number_format($drop,0) . "% — อาจมีน้ำจืด/น้ำทิ้งไหลลง";
+        elseif ($drop > 15) $yellow[] = "ความเค็มลดลง " . number_format($drop,0) . "% — เฝ้าระวังน้ำจืดเจือ";
+    }
+    if ($red)    return ['flag'=>'red',   'label'=>'🔴 ธงแดง — ไม่ควรลงเล่นน้ำ',           'reasons'=>array_merge($red,$yellow)];
+    if ($yellow) return ['flag'=>'yellow','label'=>'🟡 ธงเหลือง — ลงเล่นได้ แต่ต้องระวัง', 'reasons'=>$yellow];
+    return ['flag'=>'green','label'=>'🟢 ธงเขียว — น้ำอยู่ในเกณฑ์ ลงเล่นได้','reasons'=>[]];
+}
+
+// ข้อความตอบคำสั่ง /swim
+function tg_fmt_swim($r, $baseSal) {
+    if (!$r) return "⏳ ยังไม่มีข้อมูลจากทุ่น";
+    $s = tg_eval_swim($r, $baseSal);
+    $m = "🏖️ สถานะการลงเล่นน้ำ (" . ($r['device'] ?? DEVICE_ID) . ")\n" . $s['label'];
+    if ($s['reasons']) $m .= "\n\nเหตุผล:\n• " . implode("\n• ", $s['reasons']);
+    $m .= "\n\n" . TG_SWIM_NOTE;
+    if ($r['ts'] ?? null) $m .= "\n🕒 " . $r['ts'];
+    return $m;
+}
+
+// เรียกหลัง insert: เช็คเกณฑ์ + ธงแดง แล้วส่งหาทุก subscriber (เงียบถ้ายังไม่ตั้ง token)
 function tg_check_and_alert($device, $r) {
     if (!tg_ready()) return;
     $fire = [];
     foreach (tg_eval_alerts($r) as $al) {
         if (tg_can_fire($device . ':' . $al[0])) $fire[] = $al[1];
     }
+    // ธงแดง (ไม่ควรลงเล่นน้ำ) ก็เตือนด้วย — คนละ cooldown key
+    $swim = tg_eval_swim($r, tg_baseline_sal($device));
+    $swimRed = false;
+    if ($swim['flag'] === 'red' && tg_can_fire($device . ':swim_red')) {
+        $fire[] = "🏖️ " . $swim['label'] . "\n   • " . implode("\n   • ", $swim['reasons']);
+        $swimRed = true;
+    }
     if (!$fire) return;
     $msg = "🌊 แจ้งเตือนคุณภาพน้ำ (" . $device . ")\n" . implode("\n", $fire);
+    if ($swimRed) $msg .= "\n\n" . TG_SWIM_NOTE;
     $subs = db()->query("SELECT chat_id FROM tg_subscribers")->fetchAll();
     foreach ($subs as $s) tg_send($s['chat_id'], $msg);
 }

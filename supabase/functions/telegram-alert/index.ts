@@ -7,7 +7,7 @@
 //   ป้องกันด้วย header 'x-alert-secret' (ตั้งใน Database Webhook ให้ตรงกับ ALERT_WEBHOOK_SECRET)
 // =========================================================================
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DEVICE, tgSend, evalAlerts } from "../_shared/telegram.ts";
+import { DEVICE, tgSend, evalAlerts, evalSwim, baselineSal, SWIM_NOTE } from "../_shared/telegram.ts";
 
 const sb = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -27,6 +27,15 @@ Deno.serve(async (req) => {
   if (!row || typeof row !== "object") return new Response("no record", { status: 400 });
 
   const alerts = evalAlerts(row);
+
+  // ธงแดง (ไม่ควรลงเล่นน้ำ) ก็เตือนด้วย — baseline ความเค็มจากแถวย้อนหลัง เพื่อจับน้ำจืด/น้ำทิ้งไหลลง
+  const { data: recent } = await sb.from("readings").select("sal")
+    .eq("device", DEVICE).order("created_at", { ascending: false }).limit(20);
+  const swim = evalSwim(row, baselineSal((recent ?? []).slice(1)));
+  if (swim.flag === "red") {
+    alerts.push({ key: "swim_red", text: `🏖️ ${swim.label}\n   • ${swim.reasons.join("\n   • ")}` });
+  }
+
   if (alerts.length === 0) return new Response("ok (ปกติ ไม่มีเตือน)");
 
   // cooldown ต่อชนิด: อ่าน/อัปเดต alert_state
@@ -43,7 +52,8 @@ Deno.serve(async (req) => {
   }
   if (fire.length === 0) return new Response("ok (ยังอยู่ใน cooldown)");
 
-  const message = `🌊 แจ้งเตือนคุณภาพน้ำ (${DEVICE})\n` + fire.map((a) => a.text).join("\n");
+  let message = `🌊 แจ้งเตือนคุณภาพน้ำ (${DEVICE})\n` + fire.map((a) => a.text).join("\n");
+  if (fire.some((a) => a.key === "swim_red")) message += `\n\n${SWIM_NOTE}`;
   const { data: subs } = await sb.from("tg_subscribers").select("chat_id");
   let sent = 0;
   for (const s of subs ?? []) { if (await tgSend(s.chat_id, message)) sent++; }

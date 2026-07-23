@@ -30,7 +30,7 @@ https://server.ac.th/buoy/api/save.php?key=buoy-secret-2026&do=6.2&sal=32&turb=8
 เหมือนฝั่ง Supabase: ทุ่นแค่ POST ค่า → server เช็คเกณฑ์เองแล้วเตือน + ตอบคำสั่งแชท
 1. ใส่ `TELEGRAM_BOT_TOKEN` (จาก @BotFather) ใน `config.php`
 2. **แจ้งเตือนวิกฤต**: ทำงานอัตโนมัติใน `api/save.php` (เรียก `tg_check_and_alert()` หลังบันทึกทุกแถว, cooldown 30 นาที)
-3. **คำสั่งแชท** (/start /status /stop /help): ตั้ง webhook ชี้มาที่ `api/tg-webhook.php`
+3. **คำสั่งแชท** (/swim /status /start /stop /help): ตั้ง webhook ชี้มาที่ `api/tg-webhook.php`
    ```
    https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<โดเมน>/buoy/api/tg-webhook.php&secret_token=buoy-hook-2026
    ```

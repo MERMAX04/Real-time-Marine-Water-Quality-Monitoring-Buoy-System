@@ -22,6 +22,7 @@
 | GPS (A7670E GNSS) | ✅ ได้พิกัดจริง |
 | Dashboard (8 การ์ด + AI + การ์ดตำแหน่ง) | ✅ ใช้งานได้ |
 | Telegram แจ้งเตือนวิกฤต + `/status` (ฝั่งบก) | ✅ deploy Supabase Edge Functions แล้ว |
+| ธงสถานะการลงเล่นน้ำ (Blue Flag) + `/swim` | ✅ Dashboard + Telegram + เตือนธงแดง |
 | **เหลือ:** เก็บงาน + ทดสอบภาคสนามจริง | ⏳ |
 
 ## โครงสร้างโฟลเดอร์
@@ -37,7 +38,8 @@
 | **docs/** | แผนผังการทำงานของระบบ (system-flowchart.html) |
 
 > 🔄 **สลับ Supabase ↔ Server?** → [SWITCHING-GUIDE.md](SWITCHING-GUIDE.md)
-> 📲 **ตั้ง Telegram (แจ้งเตือน + /status)?** → [5-extensions/02-alerts-notification.md](5-extensions/02-alerts-notification.md) + [supabase/README.md](supabase/README.md)
+> 📲 **ตั้ง Telegram (แจ้งเตือน + /status /swim)?** → [5-extensions/02-alerts-notification.md](5-extensions/02-alerts-notification.md) + [supabase/README.md](supabase/README.md)
+> 🏖️ **เกณฑ์ "ลงเล่นน้ำได้ไหม" (Blue Flag / คพ.ไทย + แหล่งอ้างอิงสำหรับเล่ม)** → [5-extensions/05-blueflag-swim-safety.md](5-extensions/05-blueflag-swim-safety.md)
 
 ## ค่าที่วัด (8 พารามิเตอร์ — เฉพาะ probe ที่ sensor จริงอ่านได้)
 ออกซิเจนละลายน้ำ (DO) · ออกซิเจน %อิ่มตัว · อุณหภูมิ · ความเป็นกรด-ด่าง (pH) · ความเค็ม · การนำไฟฟ้า (Conductivity) · สารละลายรวม (TDS) · ความขุ่น

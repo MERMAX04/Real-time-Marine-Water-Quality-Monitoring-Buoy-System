@@ -127,6 +127,18 @@
   .wqi-chip .num{font-size:30px;font-weight:800;line-height:1}
   .wqi-chip .lbl{font-size:11px;color:var(--muted);margin-top:3px}
 
+  /* ---------- ธงสถานะการลงเล่นน้ำ (Blue Flag) ---------- */
+  .swim-bar{padding:16px 22px;margin-bottom:22px;display:flex;align-items:center;gap:18px;
+    flex-wrap:wrap;border-left:6px solid var(--muted)}
+  .swim-bar.f-green {border-left-color:#3ddc84}
+  .swim-bar.f-yellow{border-left-color:#ffd24a}
+  .swim-bar.f-red   {border-left-color:#ff5f6d}
+  .swim-flag{font-size:34px;line-height:1}
+  .swim-body{flex:1;min-width:240px}
+  .swim-label{font-weight:800;font-size:16px;margin-bottom:4px}
+  .swim-reasons{font-size:13.5px;line-height:1.6;color:#dcefff}
+  .swim-note{font-size:11.5px;color:var(--muted);margin-top:7px}
+
   /* ---------- Grid การ์ดค่า ---------- */
   .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:22px}
   .card{flex:1 1 240px;max-width:300px;padding:18px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:rise .5s both}
@@ -273,6 +285,16 @@
     <div class="wqi-chip"><span class="num" id="wqi-mini">--</span><span class="lbl">WQI</span></div>
   </div>
 
+  <!-- ธงสถานะการลงเล่นน้ำ (Blue Flag / bathing water) -->
+  <div class="glass swim-bar" id="swim-bar">
+    <div class="swim-flag" id="swim-flag">⚪</div>
+    <div class="swim-body">
+      <div class="swim-label" id="swim-label">กำลังประเมิน…</div>
+      <div class="swim-reasons" id="swim-reasons"></div>
+      <div class="swim-note">⚠️ ประเมินจากค่าเคมี/กายภาพเท่านั้น — ผลชี้ขาดต้องตรวจ E. coli / Enterococci ในห้องปฏิบัติการ</div>
+    </div>
+  </div>
+
   <!-- การ์ดค่า 7 ตัว -->
   <div class="grid" id="cards"></div>
 
@@ -373,7 +395,8 @@ const PARAMS = [
   { key:'ph',    th:'ความเป็นกรด-ด่าง', en:'pH',                unit:'',      icon:'🧪', color:'var(--c-ph)',    ideal:[7.5,8.5],  range:[6,9],      w:.15 },
   { key:'sal',   th:'ความเค็ม',         en:'Salinity',          unit:'ppt',   icon:'🧂', color:'var(--c-sal)',   ideal:[30,34],    range:[26,36],    w:.13 },
   { key:'cond',  th:'การนำไฟฟ้า',       en:'Conductivity',      unit:'mS/cm', icon:'⚡', color:'var(--c-cond)',  ideal:[40,55],    range:[0,65],     w:.12 },
-  { key:'tds',   th:'สารละลายรวม',      en:'TDS',               unit:'mg/L',  icon:'⚗️', color:'var(--c-tds)',   ideal:[0,45000],  range:[0,50000],  w:.09 },
+  /* TDS ไม่ใช่หัววัดแยก — คู่มือไม่มี probe TDS, ค่านี้คำนวณจากการนำไฟฟ้า (EC×~0.65) */
+  { key:'tds',   th:'สารละลายรวม',      en:'TDS (คำนวณจาก EC)', unit:'mg/L',  icon:'⚗️', color:'var(--c-tds)',   ideal:[0,45000],  range:[0,50000],  w:.09 },
   { key:'turb',  th:'ความขุ่น',         en:'Turbidity',         unit:'NTU',   icon:'🌫️', color:'var(--c-turb)',  ideal:[0,10],     range:[0,50],     w:.13 },
 ];
 /* ------------------------------------------------------------------------
@@ -549,25 +572,57 @@ function buildInsight(wqiObj){
 /* =========================================================================
    แหล่งข้อมูล (supabase / server / mock)
    ========================================================================= */
-let sbLatest = {};
+let sbLatest = {}, sbLastTs = null;   // sbLastTs = created_at ของแถวล่าสุดที่รับมาแล้ว (กันนับซ้ำ realtime/polling)
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
 function mapRow(r){ return {do:r.do_val, do_pct:r.do_pct, temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,
                             lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
                             chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
+/* เติม history ย้อนหลังจาก DB ตอนเปิดหน้า -> รีเฟรชแล้วกราฟ/ตาราง/พยากรณ์ มีข้อมูลทันที
+   (เดิมดึงมาแค่แถวเดียว กราฟจึงเริ่มนับหนึ่งใหม่ทุกครั้งที่รีเฟรช)
+   rows = เรียงจาก "เก่า -> ใหม่" */
+function seedHistory(rows){
+  const mapped = rows.map(mapRow);
+  times.length = 0;
+  rows.forEach(r => times.push(new Date(r.created_at).toLocaleTimeString('th-TH')));
+  PARAMS.forEach(p=>{
+    const vals = mapped.map(m=>{ const v=m[p.key]; return (v==null||isNaN(Number(v)))?null:Number(v); });
+    let last=null;   // ช่องว่างระหว่างทาง -> ใช้ค่าก่อนหน้า (แถวทดสอบบางแถวไม่ได้ส่งครบทุกค่า)
+    for(let i=0;i<vals.length;i++){ if(vals[i]==null) vals[i]=last; else last=vals[i]; }
+    let next=null;   // ช่องว่างหัวแถว -> ใช้ค่าถัดไป
+    for(let i=vals.length-1;i>=0;i--){ if(vals[i]==null) vals[i]=next; else next=vals[i]; }
+    history[p.key] = vals.some(v=>v==null) ? [] : vals;   // ไม่มีค่าเลยในช่วงนี้ = ปล่อยว่าง ("ไม่มีข้อมูล")
+  });
+  const newest = rows[rows.length-1];
+  sbLatest  = mapped[mapped.length-1];
+  sbLastTs  = new Date(newest.created_at).getTime();
+  lastDataAt = sbLastTs;        // ใช้เวลาจริงของแถว -> "อัปเดต X ที่แล้ว" ตรงความจริง
+}
+
 function initSource(){
   if (CONFIG.mode === 'supabase'){
     const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
     document.getElementById('loc').textContent = CONFIG.device+' (Supabase)';
-    // 1) ดึงค่าล่าสุดครั้งแรก
+    // 1) ดึงย้อนหลังมาเติมกราฟ/ตาราง (ไม่ใช่แค่แถวเดียว)
     sb.from('readings').select('*').eq('device',CONFIG.device)
-      .order('created_at',{ascending:false}).limit(1)
-      .then(({data,error})=>{ if(error) console.warn('Supabase load error:',error);
-        if(data && data[0]){ sbLatest=mapRow(data[0]); lastDataAt=Date.now(); } });
+      .order('created_at',{ascending:false}).limit(HISTORY_LEN)
+      .then(({data,error})=>{
+        if(error) return console.warn('Supabase load error:',error);
+        if(data && data.length) seedHistory(data.slice().reverse());   // กลับเป็น เก่า -> ใหม่
+      });
     // 2) ฟังแถวใหม่แบบ realtime (มี INSERT = ข้อมูลสด)
     sb.channel('readings-'+CONFIG.device)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'readings',filter:`device=eq.${CONFIG.device}`},
-        payload=>{ sbLatest=mapRow(payload.new); lastDataAt=Date.now(); })
+        payload=>{ sbLatest=mapRow(payload.new);
+                   sbLastTs=new Date(payload.new.created_at).getTime(); lastDataAt=sbLastTs; })
       .subscribe();
+    // 3) polling สำรองทุก 15 วิ — เผื่อ realtime socket หลุด หน้าเว็บจะได้ไม่ค้าง
+    setInterval(async ()=>{
+      const {data,error} = await sb.from('readings').select('*').eq('device',CONFIG.device)
+        .order('created_at',{ascending:false}).limit(1);
+      if(error || !data || !data[0]) return;
+      const ts = new Date(data[0].created_at).getTime();
+      if(ts !== sbLastTs){ sbLastTs=ts; sbLatest=mapRow(data[0]); lastDataAt=ts; }   // มีแถวใหม่จริงเท่านั้น
+    }, 15000);
   }
 }
 /* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ AI มีอะไรให้วิเคราะห์ตอนเดโม */
@@ -813,6 +868,56 @@ function renderNoData(p){
   document.getElementById('fore-'+p.key).textContent='';
 }
 
+/* =========================================================================
+   ธงสถานะการลงเล่นน้ำ (Blue Flag / bathing water)
+   เกณฑ์: คพ.ไทย (นันทนาการ) pH 7.0–8.5, DO ≥ 6 mg/L + Blue Flag ข้อ 3 (ห้ามน้ำทิ้งลงหาด)
+   ⚠️ ตัดสินขาดไม่ได้ — E. coli / Enterococci ต้องตรวจแลป
+   รายละเอียด/ที่มา: 5-extensions/05-blueflag-swim-safety.md
+   ========================================================================= */
+/* baseline ความเค็ม = มัธยฐานย้อนหลัง (ไม่รวมค่าปัจจุบัน) เพื่อจับ "การเปลี่ยนแปลงเฉียบพลัน" */
+function baselineSal(){
+  const v=history.sal.slice(0,-1).filter(x=>x!=null&&x>1).sort((a,b)=>a-b);
+  return v.length<3 ? null : v[Math.floor(v.length/2)];
+}
+function evalSwim(d){
+  const red=[], yellow=[];
+  const dov=d.do, ph=d.ph, temp=d.temp, turb=d.turb, sal=d.sal;
+  if(sal!=null && sal<1)
+    return {flag:'unknown',label:'⚪ ยังประเมินไม่ได้',reasons:['ความเค็มต่ำมาก — ทุ่นอาจไม่ได้อยู่ในน้ำทะเล']};
+  if(dov!=null){ if(dov<4) red.push(`ออกซิเจนละลายน้ำต่ำมาก ${dov.toFixed(2)} mg/L (มาตรฐานนันทนาการ ≥ 6)`);
+                 else if(dov<6) yellow.push(`ออกซิเจนละลายน้ำ ${dov.toFixed(2)} mg/L ต่ำกว่ามาตรฐาน (≥ 6)`); }
+  /* DO% — เซนเซอร์บางตัวส่งเป็นสัดส่วน (0.90 = 90%) จึง normalize ก่อน */
+  let dp=d.do_pct; if(dp!=null && dp<=2) dp=dp*100;
+  if(dp!=null){ if(dp<60||dp>130) red.push(`ออกซิเจนอิ่มตัว ${dp.toFixed(0)}% ผิดปกติมาก (ปกติ 80–120%)`);
+                else if(dp<80||dp>120) yellow.push(`ออกซิเจนอิ่มตัว ${dp.toFixed(0)}% นอกช่วงปกติ (80–120%)`); }
+  const cond=d.cond;   /* การนำไฟฟ้าต่ำ = น้ำจืดเจือ (สอดคล้องกับความเค็ม) */
+  if(cond!=null){ if(cond<35) red.push(`การนำไฟฟ้าต่ำ ${cond.toFixed(1)} mS/cm (น้ำทะเลปกติ 45–55)`);
+                  else if(cond<45) yellow.push(`การนำไฟฟ้า ${cond.toFixed(1)} mS/cm ต่ำกว่าปกติ (45–55)`); }
+  if(ph!=null){ if(ph<6.5||ph>9.0) red.push(`pH ${ph.toFixed(2)} นอกช่วงปลอดภัย (6.5–9.0)`);
+                else if(ph<7.0||ph>8.5) yellow.push(`pH ${ph.toFixed(2)} นอกมาตรฐานนันทนาการ (7.0–8.5)`); }
+  if(turb!=null){ if(turb>40) red.push(`น้ำขุ่นมาก ${turb.toFixed(1)} NTU — มองไม่เห็นใต้น้ำ`);
+                  else if(turb>15) yellow.push(`น้ำขุ่น ${turb.toFixed(1)} NTU — ทัศนวิสัยใต้น้ำแย่`); }
+  if(temp!=null && temp>33) yellow.push(`อุณหภูมิน้ำสูง ${temp.toFixed(1)} °C — แบคทีเรียโตเร็ว`);
+  const base=baselineSal();
+  if(sal!=null && base && base>1){
+    const drop=(base-sal)/base*100;
+    if(drop>30) red.push(`ความเค็มลดฮวบ ${drop.toFixed(0)}% — อาจมีน้ำจืด/น้ำทิ้งไหลลง`);
+    else if(drop>15) yellow.push(`ความเค็มลดลง ${drop.toFixed(0)}% — เฝ้าระวังน้ำจืดเจือ`);
+  }
+  if(red.length)    return {flag:'red',   label:'🔴 ธงแดง — ไม่ควรลงเล่นน้ำ',           reasons:red.concat(yellow)};
+  if(yellow.length) return {flag:'yellow',label:'🟡 ธงเหลือง — ลงเล่นได้ แต่ต้องระวัง', reasons:yellow};
+  return {flag:'green',label:'🟢 ธงเขียว — น้ำอยู่ในเกณฑ์ ลงเล่นได้',reasons:[]};
+}
+function renderSwim(){
+  const d={}; PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) d[p.key]=a.at(-1); });
+  const s=evalSwim(d);
+  document.getElementById('swim-bar').className='glass swim-bar f-'+s.flag;
+  document.getElementById('swim-flag').textContent={green:'🟢',yellow:'🟡',red:'🔴',unknown:'⚪'}[s.flag];
+  document.getElementById('swim-label').textContent=s.label;
+  document.getElementById('swim-reasons').innerHTML =
+    s.reasons.length ? '• '+s.reasons.join('<br>• ') : 'ทุกค่าที่วัดได้อยู่ในเกณฑ์มาตรฐาน';
+}
+
 async function tick(){
   const data=await fetchData();
   // โหมดจริง (supabase/server/...) เก็บ history เฉพาะเมื่อมี "ข้อมูลใหม่" เท่านั้น
@@ -839,6 +944,7 @@ async function tick(){
     document.getElementById('fore-'+p.key).textContent=arrow;
     drawSpark(p);
   });
+  renderSwim();                       // ธงสถานะการลงเล่นน้ำ (Blue Flag)
   const wqiObj=computeWQI();
   drawGauge(wqiObj.wqi,wqiObj.cls);
   document.getElementById('wqi-num').textContent=wqiObj.wqi;
