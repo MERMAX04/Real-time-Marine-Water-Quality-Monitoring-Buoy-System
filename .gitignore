@@ -21,10 +21,12 @@ __pycache__/
 # ถ้าอยากเก็บคู่มือใน repo ด้วย ให้ลบบรรทัดนี้ออก
 0-manuals/*.pdf
 
-# ===== โฟลเดอร์สำเนาที่ Arduino IDE สร้าง (ซ้ำกับ .ino ตัวจริง) =====
-# Arduino ต้องการให้ .ino อยู่ในโฟลเดอร์ชื่อเดียวกัน -> มันสร้างสำเนาเป็นโฟลเดอร์
-# บรรทัดนี้กันไม่ให้สำเนาพวกนั้นขึ้น repo (เก็บแค่ .ino ตัวจริงที่วางแบนไว้)
+# ===== โฟลเดอร์สำเนา/build ที่ Arduino IDE สร้าง =====
+# กัน build-copy อัตโนมัติขึ้น repo แต่ "เก็บ" โฟลเดอร์ firmware จริง + สำรอง
 3-supabase-primary/*/
+# ยกเว้น: firmware หลัก (ตัวที่ flash) + sketch ทดสอบ/สำรอง
+!3-supabase-primary/Full-Version/
+!3-supabase-primary/Backup/
 
 # ===== Supabase CLI: ไฟล์ state เฉพาะเครื่อง (ไม่ใช่ source) — ห้าม commit =====
 supabase/.temp/
