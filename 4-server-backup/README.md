@@ -30,14 +30,15 @@ https://server.ac.th/buoy/api/save.php?key=buoy-secret-2026&do=6.2&sal=32&turb=8
 เหมือนฝั่ง Supabase: ทุ่นแค่ POST ค่า → server เช็คเกณฑ์เองแล้วเตือน + ตอบคำสั่งแชท
 1. ใส่ `TELEGRAM_BOT_TOKEN` (จาก @BotFather) ใน `config.php`
 2. **แจ้งเตือนวิกฤต**: ทำงานอัตโนมัติใน `api/save.php` (เรียก `tg_check_and_alert()` หลังบันทึกทุกแถว, cooldown 30 นาที)
-3. **คำสั่งแชท** (/swim /status /start /stop /help): ตั้ง webhook ชี้มาที่ `api/tg-webhook.php`
+3. **โหมด 6 ประเภท**: รันตาราง `app_settings` (มีใน `db.sql`) + ตั้ง `TG_ADMINS` (chat_id) ใน `config.php` เพื่อใช้ `/mode`
+4. **คำสั่งแชท** (/swim /status /mode /start /stop /help): ตั้ง webhook ชี้มาที่ `api/tg-webhook.php`
    ```
    https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<โดเมน>/buoy/api/tg-webhook.php&secret_token=buoy-hook-2026
    ```
    (`secret_token` ต้องตรงกับ `TELEGRAM_WEBHOOK_SECRET` ใน `config.php`)
 4. ทดสอบ: ทักบอท `/start` → ได้ข้อความต้อนรับ · `/status` → ค่าล่าสุด · ยิง save.php ค่าที่เข้าเกณฑ์ → ได้แจ้งเตือน
 
-> เกณฑ์/cooldown แก้ได้ที่ `lib/telegram.php` (`tg_eval_alerts`, `TG_COOLDOWN_SEC`) — ไม่ต้อง flash ทุ่น
+> เกณฑ์ 6 โหมดแก้ได้ที่ `lib/water-modes.json` · cooldown ที่ `TG_COOLDOWN_SEC` ใน `lib/telegram.php` — ไม่ต้อง flash ทุ่น
 
 ## ไฟล์
 | ไฟล์ | หน้าที่ |

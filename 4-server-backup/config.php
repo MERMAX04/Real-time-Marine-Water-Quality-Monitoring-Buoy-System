@@ -17,6 +17,7 @@ define('API_KEY', 'buoy-secret-2026'); // เปลี่ยนเป็นค�
 define('DEVICE_ID', 'buoy-01');
 define('TELEGRAM_BOT_TOKEN', 'ใส่_BOT_TOKEN');       // ★ จาก @BotFather (123456789:ABC...)
 define('TELEGRAM_WEBHOOK_SECRET', 'buoy-hook-2026'); // ตั้งเองอะไรก็ได้ (ให้ตรงตอน setWebhook)
+define('TG_ADMINS', '');                             // chat_id ที่เปลี่ยนโหมดผ่าน /mode ได้ (คั่นด้วย , เช่น '123456789,987654321')
 
 // --- เชื่อมต่อ DB (ไม่ต้องแก้) ---
 function db() {

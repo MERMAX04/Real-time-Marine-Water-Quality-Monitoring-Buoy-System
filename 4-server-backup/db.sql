@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS readings (
     `cond`    FLOAT  NULL,   -- การนำไฟฟ้า (mS/cm)  (backtick กันชนคำสงวน)
     tds       FLOAT  NULL,   -- สารละลายรวม
     turb      FLOAT  NULL,   -- ความขุ่น (NTU)
+    sensor_ok TINYINT(1) NOT NULL DEFAULT 1,   -- heartbeat: 0 = ESP ยังไลฟ์ แต่ sensor อ่านไม่ได้
     chl       FLOAT  NULL,   -- คลอโรฟิลล์ (µg/L)
     orp       FLOAT  NULL,   -- ศักย์ออกซิเดชัน (mV)
     oil       FLOAT  NULL,   -- น้ำมัน
@@ -39,9 +40,17 @@ CREATE TABLE IF NOT EXISTS tg_subscribers (
 
 -- เวลาแจ้งเตือนล่าสุดต่อชนิด (กันเตือนซ้ำ = cooldown)
 CREATE TABLE IF NOT EXISTS alert_state (
-    k          VARCHAR(64) PRIMARY KEY,   -- เช่น 'buoy-01:do', 'buoy-01:ph_low'
+    k          VARCHAR(64) PRIMARY KEY,   -- เช่น 'buoy-01:red:recreation:do_val'
     last_sent  DATETIME
 );
+
+-- ตั้งค่ากลางของระบบ — เก็บ "โหมดมาตรฐานคุณภาพน้ำ" ที่เลือกอยู่ (ใช้ร่วมเว็บ+บอต)
+CREATE TABLE IF NOT EXISTS app_settings (
+    k          VARCHAR(64) PRIMARY KEY,
+    v          VARCHAR(64) NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+INSERT IGNORE INTO app_settings (k, v) VALUES ('mode', 'recreation');
 
 -- ผู้ใช้เฉพาะสำหรับแอป (ปลอดภัยกว่าใช้ root) — แก้รหัสผ่านให้ตรง config.php
 -- CREATE USER 'buoy_user'@'localhost' IDENTIFIED BY 'CHANGE_ME';

@@ -1,0 +1,158 @@
+{
+  "version": "1.0",
+  "_about": "Config กลาง 6 ประเภทมาตรฐานน้ำทะเลไทย — ไฟล์นี้คือ single source of truth ใช้ร่วมกันทั้ง Dashboard, Telegram bot/alert และ PHP backup แก้ที่นี่ที่เดียวมีผลทุกที่",
+  "_baselineNote": "อุณหภูมิ/ความเค็มใช้แบบผสม: ค่าสัมบูรณ์เป็นค่าเริ่มต้น (แปลงจากเกณฑ์ 'เปลี่ยนจากธรรมชาติ' โดยสมมติฐานน้ำทะเลไทย ~31°C). เปิดช่องตั้ง baseline จริงต่อจุดได้ภายหลัง",
+  "defaultMode": "recreation",
+
+  "statusColors": {
+    "green":  { "emoji": "🟢", "label": "ปลอดภัย" },
+    "orange": { "emoji": "🟠", "label": "ระวัง" },
+    "red":    { "emoji": "🔴", "label": "อันตราย" }
+  },
+
+  "params": {
+    "ph":     { "label": "pH (กรด-ด่าง)",        "unit": "",      "order": 1 },
+    "do_val": { "label": "ออกซิเจนละลายน้ำ (DO)", "unit": "mg/L",  "order": 2 },
+    "do_pct": { "label": "ออกซิเจนอิ่มตัว",       "unit": "%",     "order": 3 },
+    "temp":   { "label": "อุณหภูมิ",              "unit": "°C",    "order": 4 },
+    "sal":    { "label": "ความเค็ม",              "unit": "ppt",   "order": 5 },
+    "cond":   { "label": "การนำไฟฟ้า (EC)",       "unit": "mS/cm", "order": 6 },
+    "turb":   { "label": "ความขุ่น",              "unit": "NTU",   "order": 7 }
+  },
+
+  "_bandFormat": "green/orange = [min, max] (null = ไม่จำกัดด้านนั้น). ค่าอยู่ในช่วง green→เขียว, ไม่เขียวแต่อยู่ในช่วง orange→ส้ม, นอกช่วง orange→แดง. tier: critical = แดง→สถานะรวมแดง, advisory = แดง→สถานะรวมส้ม",
+
+  "modes": {
+    "conservation": {
+      "id": 1,
+      "name": "อนุรักษ์ทรัพยากรธรรมชาติ",
+      "purpose": "เพื่อการอนุรักษ์ทรัพยากรธรรมชาติ",
+      "title": "🌱 คุณภาพน้ำเชิงนิเวศ",
+      "labNote": "ค่าโลหะหนัก/ปิโตรเลียมต้องตรวจในห้องปฏิบัติการ (ทุ่นวัดไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [5.0, null], "orange": [4.0, null], "tier": "critical", "std": "≥ 4.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 32], "orange": [null, 33], "tier": "critical", "std": "เปลี่ยน ≤ +1°C" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 15], "orange": [null, 30], "tier": "advisory" }
+      },
+      "advice": {
+        "green":  "น้ำอยู่ในเกณฑ์ สภาพแวดล้อมในน้ำอยู่ในระดับที่ปลอดภัยต่อระบบนิเวศ",
+        "orange": "คุณภาพน้ำเริ่มเปลี่ยนแปลง ควรเฝ้าระวังผลต่อสิ่งมีชีวิตในน้ำ — {reasons}",
+        "red":    "คุณภาพน้ำเกินเกณฑ์อนุรักษ์ ระบบนิเวศเสี่ยงได้รับผลกระทบ — {reasons}"
+      }
+    },
+
+    "coral": {
+      "id": 2,
+      "name": "อนุรักษ์แหล่งปะการัง",
+      "purpose": "เพื่อการอนุรักษ์แหล่งปะการัง",
+      "title": "🪸 สถานะน้ำต่อแหล่งปะการัง",
+      "labNote": "Enterococci ต้องตรวจในห้องปฏิบัติการ (ทุ่นวัดไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [7.0, null], "orange": [6.0, null], "tier": "critical", "std": "≥ 6.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 31], "orange": [null, 32], "tier": "critical", "std": "ห้ามเปลี่ยน (เสี่ยงฟอกขาว)" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 10], "orange": [null, 20], "tier": "critical", "std": "น้ำต้องใส ตะกอนกลบปะการัง" }
+      },
+      "advice": {
+        "green":  "น้ำเหมาะสมต่อการดำรงชีวิตของปะการัง",
+        "orange": "สภาพน้ำเริ่มกดดันปะการัง ควรเฝ้าระวัง — {reasons}",
+        "red":    "สภาพน้ำเสี่ยงทำให้ปะการังฟอกขาว/เสื่อมโทรม — {reasons}"
+      }
+    },
+
+    "aquaculture": {
+      "id": 3,
+      "name": "เพาะเลี้ยงสัตว์น้ำ",
+      "purpose": "เพื่อการเพาะเลี้ยงสัตว์น้ำ",
+      "title": "🐟 น้ำเพื่อการเพาะเลี้ยงสัตว์น้ำ",
+      "labNote": "ไนเตรต/ฟอสเฟตต้องตรวจในห้องปฏิบัติการ (ทุ่นวัดไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [5.0, null], "orange": [4.0, null], "tier": "critical", "std": "≥ 4.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 32], "orange": [null, 33], "tier": "critical", "std": "เปลี่ยน ≤ +1°C" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 15], "orange": [null, 40], "tier": "advisory" }
+      },
+      "advice": {
+        "green":  "น้ำเหมาะสมต่อการเพาะเลี้ยงสัตว์น้ำ",
+        "orange": "คุณภาพน้ำต้องเฝ้าระวัง อาจกระทบการเจริญเติบโตของสัตว์น้ำ — {reasons}",
+        "red":    "น้ำไม่เหมาะต่อการเพาะเลี้ยง เสี่ยงสัตว์น้ำเครียด/ตาย — {reasons}"
+      }
+    },
+
+    "recreation": {
+      "id": 4,
+      "name": "นันทนาการ",
+      "purpose": "เพื่อการนันทนาการ (ว่ายน้ำ/เล่นน้ำ)",
+      "title": "🏖️ สถานะการลงเล่นน้ำ",
+      "labNote": "ผลชี้ขาดต้องตรวจ E. coli / Enterococci ในห้องปฏิบัติการ (ทุ่นวัดแบคทีเรียไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [5.0, null], "orange": [4.0, null], "tier": "critical", "std": "≥ 4.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 33], "orange": [null, 34], "tier": "advisory", "std": "เปลี่ยน ≤ +2°C" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 15], "orange": [null, 40], "tier": "advisory" }
+      },
+      "advice": {
+        "green":  "น้ำอยู่ในเกณฑ์ ลงเล่นน้ำและทำกิจกรรมทางน้ำได้ตามปกติ",
+        "orange": "ยังลงเล่นน้ำ/ทำกิจกรรมได้ แต่ควรระวัง — {reasons}",
+        "red":    "ไม่ควรลงเล่นน้ำหรือทำกิจกรรมทางน้ำ — {reasons}"
+      }
+    },
+
+    "industrial": {
+      "id": 5,
+      "name": "อุตสาหกรรมและท่าเรือ",
+      "purpose": "เพื่อการอุตสาหกรรมและท่าเรือ",
+      "title": "🏭 น้ำเขตอุตสาหกรรม/ท่าเรือ",
+      "labNote": "โลหะหนัก/สารเคมีต้องตรวจในห้องปฏิบัติการ (ทุ่นวัดไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [5.0, null], "orange": [4.0, null], "tier": "advisory", "std": "≥ 4.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 32], "orange": [null, 33], "tier": "advisory", "std": "เปลี่ยน ≤ +1°C" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 15], "orange": [null, 40], "tier": "advisory" }
+      },
+      "advice": {
+        "green":  "คุณภาพน้ำอยู่ในเกณฑ์สำหรับพื้นที่อุตสาหกรรม/ท่าเรือ",
+        "orange": "คุณภาพน้ำควรเฝ้าระวัง — {reasons}",
+        "red":    "คุณภาพน้ำเกินเกณฑ์ที่ยอมรับได้ — {reasons}"
+      }
+    },
+
+    "community": {
+      "id": 6,
+      "name": "เขตชุมชนชายฝั่ง",
+      "purpose": "เพื่อการใช้ประโยชน์ของชุมชนชายฝั่ง",
+      "title": "🏘️ น้ำเขตชุมชนชายฝั่ง",
+      "labNote": "ค่าชี้วัดสุขอนามัยต้องตรวจในห้องปฏิบัติการ (ทุ่นวัดไม่ได้)",
+      "criteria": {
+        "ph":     { "green": [7.0, 8.5], "orange": [6.5, 9.0], "tier": "critical" },
+        "do_val": { "green": [5.0, null], "orange": [4.0, null], "tier": "critical", "std": "≥ 4.0" },
+        "do_pct": { "green": [80, 120], "orange": [60, 130], "tier": "advisory" },
+        "temp":   { "green": [null, 32], "orange": [null, 33], "tier": "advisory", "std": "เปลี่ยน ≤ +1°C" },
+        "sal":    { "green": [29, 35], "orange": [26, 37], "tier": "advisory" },
+        "cond":   { "green": [35, 53], "orange": [30, 58], "tier": "advisory" },
+        "turb":   { "green": [null, 15], "orange": [null, 40], "tier": "advisory" }
+      },
+      "advice": {
+        "green":  "คุณภาพน้ำอยู่ในเกณฑ์สำหรับชุมชนชายฝั่ง",
+        "orange": "คุณภาพน้ำควรเฝ้าระวัง — {reasons}",
+        "red":    "คุณภาพน้ำเกินเกณฑ์ อาจกระทบการใช้ประโยชน์ของชุมชน — {reasons}"
+      }
+    }
+  }
+}

@@ -16,6 +16,7 @@ create table if not exists public.readings (
   cond       real,   -- การนำไฟฟ้า (mS/cm)
   tds        real,   -- สารละลายรวม (mg/L)
   turb       real,   -- ความขุ่น (NTU)
+  sensor_ok  boolean not null default true,   -- heartbeat: false = ESP ยังไลฟ์ แต่ sensor อ่านไม่ได้
   lat        double precision,   -- พิกัด GPS ละติจูด (องศาทศนิยม)
   lon        double precision,   -- พิกัด GPS ลองจิจูด (องศาทศนิยม)
   -- ค่าที่ probe รุ่นนี้ยังไม่ได้ติด (เก็บคอลัมน์ไว้เผื่ออนาคต):
@@ -33,6 +34,7 @@ alter table public.readings add column if not exists cond   real;
 alter table public.readings add column if not exists tds    real;
 alter table public.readings add column if not exists lat    double precision;
 alter table public.readings add column if not exists lon    double precision;
+alter table public.readings add column if not exists sensor_ok boolean not null default true;
 
 -- index: ดึง "ล่าสุด/ย้อนหลัง" ของแต่ละทุ่นให้เร็ว
 create index if not exists idx_readings_device_time

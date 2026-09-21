@@ -139,6 +139,22 @@
   .swim-reasons{font-size:13.5px;line-height:1.6;color:#dcefff}
   .swim-note{font-size:11.5px;color:var(--muted);margin-top:7px}
 
+  /* ---------- แถบเลือกโหมดมาตรฐาน ---------- */
+  .mode-bar{padding:14px 20px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-left:6px solid var(--accent2)}
+  .mode-info{display:flex;align-items:center;gap:13px;min-width:240px}
+  .mode-ico{font-size:30px;line-height:1}
+  .mode-ttl{font-weight:800;font-size:15.5px}
+  .mode-sub{font-size:11.5px;color:var(--muted);margin-top:2px;max-width:420px}
+  .mode-select{background:rgba(255,255,255,.06);color:#eaf6ff;border:1px solid var(--glass-brd);border-radius:12px;
+    padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;min-width:230px}
+  .mode-select:focus{outline:none;border-color:var(--accent2)}
+  .mode-select option{background:#0d2136;color:#eaf6ff}
+  /* ---------- ติ๊กเลือกค่า export ---------- */
+  .export-pick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:10px 2px 2px;font-size:12px;color:var(--muted)}
+  .export-pick .epk-ttl{font-weight:700;color:#dcefff}
+  .export-pick label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  .export-pick input{accent-color:var(--accent2);cursor:pointer}
+
   /* ---------- Grid การ์ดค่า ---------- */
   .grid{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-bottom:22px}
   .card{flex:1 1 240px;max-width:300px;padding:18px;position:relative;overflow:hidden;transition:transform .18s,box-shadow .18s;animation:rise .5s both}
@@ -278,6 +294,18 @@
     </div>
   </header>
 
+  <!-- แถบเลือกโหมดมาตรฐานคุณภาพน้ำ (6 ประเภท) -->
+  <div class="glass mode-bar">
+    <div class="mode-info">
+      <span class="mode-ico" id="mode-ico">🌊</span>
+      <div>
+        <div class="mode-ttl">โหมดมาตรฐาน: <b id="mode-name">—</b></div>
+        <div class="mode-sub">เลือกประเภทการใช้งานน้ำ — เกณฑ์ตัดสิน สีสถานะ และการแจ้งเตือนจะปรับตามโหมดนี้ทั้งหมด</div>
+      </div>
+    </div>
+    <select id="mode-select" class="mode-select" aria-label="เลือกโหมดมาตรฐาน"></select>
+  </div>
+
   <!-- AI Insight Bar -->
   <div class="glass ai-bar">
     <div class="ai-badge"><span class="spark">🤖</span><span>AI วิเคราะห์</span></div>
@@ -291,7 +319,7 @@
     <div class="swim-body">
       <div class="swim-label" id="swim-label">กำลังประเมิน…</div>
       <div class="swim-reasons" id="swim-reasons"></div>
-      <div class="swim-note">⚠️ ประเมินจากค่าเคมี/กายภาพเท่านั้น — ผลชี้ขาดต้องตรวจ E. coli / Enterococci ในห้องปฏิบัติการ</div>
+      <div class="swim-note" id="swim-note">⚠️ ประเมินจากค่าที่ทุ่นวัดได้เท่านั้น</div>
     </div>
   </div>
 
@@ -329,6 +357,7 @@
         <button class="obtn" id="exportCsv">⬇️ CSV</button>
       </div>
     </div>
+    <div class="export-pick" id="export-pick"></div>
     <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
     <div class="tblwrap" id="tblwrap"></div>
   </div>
@@ -576,6 +605,7 @@ let sbLatest = {}, sbLastTs = null;   // sbLastTs = created_at ของแถ�
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
 function mapRow(r){ return {do:r.do_val, do_pct:r.do_pct, temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,
                             lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
+                            sensor_ok:r.sensor_ok,                               // heartbeat: false = ESP ไลฟ์ แต่ sensor เสีย
                             chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
 /* เติม history ย้อนหลังจาก DB ตอนเปิดหน้า -> รีเฟรชแล้วกราฟ/ตาราง/พยากรณ์ มีข้อมูลทันที
    (เดิมดึงมาแค่แถวเดียว กราฟจึงเริ่มนับหนึ่งใหม่ทุกครั้งที่รีเฟรช)
@@ -810,11 +840,19 @@ function renderTable(){
   document.getElementById('tblwrap').innerHTML=
     `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
 }
+/* สร้างช่องติ๊กเลือกค่าที่จะ export (ค่าเริ่มต้น = เลือกทั้งหมด) */
+function buildExportPick(){
+  const el=document.getElementById('export-pick'); if(!el)return;
+  el.innerHTML='<span class="epk-ttl">⬇️ เลือกค่าที่จะ export:</span>'+
+    PARAMS.map(p=>`<label><input type="checkbox" id="exp-${p.key}" checked>${p.th}</label>`).join('');
+}
 function exportCSV(){
-  let csv='เวลา,'+PARAMS.map(p=>p.en).join(',')+'\n';
-  times.forEach((t,i)=>{csv+=t+','+PARAMS.map(p=>(history[p.key][i]??'').toString()).join(',')+'\n';});
+  const picked=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
+  const cols=picked.length?picked:PARAMS;                 // ไม่ติ๊กเลย = เอาทั้งหมด
+  let csv='เวลา,'+cols.map(p=>p.en).join(',')+'\n';
+  times.forEach((t,i)=>{csv+=t+','+cols.map(p=>(history[p.key][i]??'').toString()).join(',')+'\n';});
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
   a.download='buoy-history.csv';a.click();
 }
 
@@ -848,8 +886,14 @@ function updateStatus(){
   if(lastDataAt==null){ conn.className='pill st-off'; txt.textContent='ยังไม่มีข้อมูล'; fresh.textContent='อัปเดต: —'; return; }
   const ageS=Math.max(0,Math.floor((Date.now()-lastDataAt)/1000));
   fresh.textContent='อัปเดต: '+relTime(ageS);
-  if(ageS<=CONFIG.staleSeconds){ conn.className='pill st-on'; txt.textContent='ออนไลน์'; }
-  else { conn.className='pill st-stale'; txt.textContent='ข้อมูลค้าง'; }
+  // ทุ่นส่งทุก ~15 วิ -> <45วิ = สด, 45วิ–5นาที = สะดุด, >5นาที = ออฟไลน์
+  const sensorBad = (CONFIG.mode!=='mock' && sbLatest && sbLatest.sensor_ok===false);
+  if(ageS<45){
+    if(sensorBad){ conn.className='pill st-stale'; txt.textContent='sensor ขัดข้อง'; }  // ESP ไลฟ์ แต่ probe อ่านไม่ได้
+    else { conn.className='pill st-on'; txt.textContent='ทุ่นออนไลน์'; }
+  }
+  else if(ageS<300){ conn.className='pill st-stale'; txt.textContent='ข้อมูลค้าง'; }
+  else { conn.className='pill st-off'; txt.textContent='ทุ่นออฟไลน์'; }
   updateLocation();
 }
 /* อัปเดตการ์ด "ตำแหน่งทุ่น" จากพิกัด GPS จริง (โหมด supabase/server) */
@@ -870,52 +914,60 @@ function renderNoData(p){
 
 /* =========================================================================
    ธงสถานะการลงเล่นน้ำ (Blue Flag / bathing water)
-   เกณฑ์: คพ.ไทย (นันทนาการ) pH 7.0–8.5, DO ≥ 6 mg/L + Blue Flag ข้อ 3 (ห้ามน้ำทิ้งลงหาด)
+   เกณฑ์: มาตรฐานน้ำทะเลไทย ประเภทที่ 4 (นันทนาการ) — pH 7.0–8.5, DO ≥ 4.0, อุณหภูมิ ≤ 33°C, EC 35–53, ความเค็ม 29–35
    ⚠️ ตัดสินขาดไม่ได้ — E. coli / Enterococci ต้องตรวจแลป
    รายละเอียด/ที่มา: 5-extensions/05-blueflag-swim-safety.md
    ========================================================================= */
-/* baseline ความเค็ม = มัธยฐานย้อนหลัง (ไม่รวมค่าปัจจุบัน) เพื่อจับ "การเปลี่ยนแปลงเฉียบพลัน" */
-function baselineSal(){
-  const v=history.sal.slice(0,-1).filter(x=>x!=null&&x>1).sort((a,b)=>a-b);
-  return v.length<3 ? null : v[Math.floor(v.length/2)];
+/* map คีย์ dashboard ('do') <-> คีย์ config ('do_val') */
+function cfgKey(k){ return k==='do' ? 'do_val' : k; }
+function dashKey(k){ return k==='do_val' ? 'do' : k; }
+const DEC_M={ph:2,do_val:2,do_pct:0,temp:1,sal:1,cond:1,turb:1};
+
+function inBandJS(v,band){ const lo=band[0],hi=band[1]; if(lo!=null&&v<lo)return false; if(hi!=null&&v>hi)return false; return true; }
+function bandStatusJS(v,g,o){ if(inBandJS(v,g))return'green'; if(inBandJS(v,o))return'orange'; return'red'; }
+
+/* สถานะสีของค่าเดียว ตามเกณฑ์โหมดปัจจุบัน (null = ค่านี้ไม่อยู่ในเกณฑ์ตัดสิน เช่น TDS) */
+function paramStatusMode(k,v){
+  if(!MODE_CFG||v==null||isNaN(v)) return null;
+  const c=MODE_CFG.modes[CUR_MODE].criteria[cfgKey(k)];
+  if(!c) return null;
+  let val=v; if(cfgKey(k)==='do_pct'&&val<=2)val*=100;
+  return bandStatusJS(val,c.green,c.orange);
 }
-function evalSwim(d){
-  const red=[], yellow=[];
-  const dov=d.do, ph=d.ph, temp=d.temp, turb=d.turb, sal=d.sal;
-  if(sal!=null && sal<1)
-    return {flag:'unknown',label:'⚪ ยังประเมินไม่ได้',reasons:['ความเค็มต่ำมาก — ทุ่นอาจไม่ได้อยู่ในน้ำทะเล']};
-  if(dov!=null){ if(dov<4) red.push(`ออกซิเจนละลายน้ำต่ำมาก ${dov.toFixed(2)} mg/L (มาตรฐานนันทนาการ ≥ 6)`);
-                 else if(dov<6) yellow.push(`ออกซิเจนละลายน้ำ ${dov.toFixed(2)} mg/L ต่ำกว่ามาตรฐาน (≥ 6)`); }
-  /* DO% — เซนเซอร์บางตัวส่งเป็นสัดส่วน (0.90 = 90%) จึง normalize ก่อน */
-  let dp=d.do_pct; if(dp!=null && dp<=2) dp=dp*100;
-  if(dp!=null){ if(dp<60||dp>130) red.push(`ออกซิเจนอิ่มตัว ${dp.toFixed(0)}% ผิดปกติมาก (ปกติ 80–120%)`);
-                else if(dp<80||dp>120) yellow.push(`ออกซิเจนอิ่มตัว ${dp.toFixed(0)}% นอกช่วงปกติ (80–120%)`); }
-  const cond=d.cond;   /* การนำไฟฟ้าต่ำ = น้ำจืดเจือ (สอดคล้องกับความเค็ม) */
-  if(cond!=null){ if(cond<35) red.push(`การนำไฟฟ้าต่ำ ${cond.toFixed(1)} mS/cm (น้ำทะเลปกติ 45–55)`);
-                  else if(cond<45) yellow.push(`การนำไฟฟ้า ${cond.toFixed(1)} mS/cm ต่ำกว่าปกติ (45–55)`); }
-  if(ph!=null){ if(ph<6.5||ph>9.0) red.push(`pH ${ph.toFixed(2)} นอกช่วงปลอดภัย (6.5–9.0)`);
-                else if(ph<7.0||ph>8.5) yellow.push(`pH ${ph.toFixed(2)} นอกมาตรฐานนันทนาการ (7.0–8.5)`); }
-  if(turb!=null){ if(turb>40) red.push(`น้ำขุ่นมาก ${turb.toFixed(1)} NTU — มองไม่เห็นใต้น้ำ`);
-                  else if(turb>15) yellow.push(`น้ำขุ่น ${turb.toFixed(1)} NTU — ทัศนวิสัยใต้น้ำแย่`); }
-  if(temp!=null && temp>33) yellow.push(`อุณหภูมิน้ำสูง ${temp.toFixed(1)} °C — แบคทีเรียโตเร็ว`);
-  const base=baselineSal();
-  if(sal!=null && base && base>1){
-    const drop=(base-sal)/base*100;
-    if(drop>30) red.push(`ความเค็มลดฮวบ ${drop.toFixed(0)}% — อาจมีน้ำจืด/น้ำทิ้งไหลลง`);
-    else if(drop>15) yellow.push(`ความเค็มลดลง ${drop.toFixed(0)}% — เฝ้าระวังน้ำจืดเจือ`);
+
+/* ประเมินสถานะรวมตามโหมด (มิเรอร์ water-eval.ts) */
+function evalWaterJS(d){
+  const cfg=MODE_CFG.modes[CUR_MODE], crit=cfg.criteria, META=MODE_CFG.params;
+  if(d.sal!=null && d.sal<1)
+    return {overall:'unknown',title:cfg.title,head:'ยังประเมินไม่ได้',advice:'ความเค็มต่ำมาก — ทุ่นอาจไม่ได้อยู่ในน้ำทะเล',reasons:[],labNote:cfg.labNote};
+  let anyCritRed=false,anyRed=false,anyOrange=false; const redR=[],watchR=[];
+  const keys=Object.keys(crit).sort((a,b)=>(META[a].order||99)-(META[b].order||99));
+  for(const ck of keys){
+    let v=d[dashKey(ck)]; if(v==null||isNaN(v))continue;
+    if(ck==='do_pct'&&v<=2)v*=100;
+    const c=crit[ck], st=bandStatusJS(v,c.green,c.orange);
+    const text=`${(+v).toFixed(DEC_M[ck]??1)}${META[ck].unit?' '+META[ck].unit:''}`;
+    if(st==='red'){ anyRed=true; if(c.tier==='critical')anyCritRed=true; redR.push(`${META[ck].label} ${text}`); }
+    else if(st==='orange'){ anyOrange=true; watchR.push(`${META[ck].label} ${text}`); }
   }
-  if(red.length)    return {flag:'red',   label:'🔴 ธงแดง — ไม่ควรลงเล่นน้ำ',           reasons:red.concat(yellow)};
-  if(yellow.length) return {flag:'yellow',label:'🟡 ธงเหลือง — ลงเล่นได้ แต่ต้องระวัง', reasons:yellow};
-  return {flag:'green',label:'🟢 ธงเขียว — น้ำอยู่ในเกณฑ์ ลงเล่นได้',reasons:[]};
+  let overall,reasons;
+  if(anyCritRed){overall='red';reasons=redR;}
+  else if(anyRed||anyOrange){overall='orange';reasons=redR.concat(watchR);}
+  else{overall='green';reasons=[];}
+  const head=(cfg.advice[overall].split('{reasons}')[0]||'').replace(/[—-]\s*$/,'').trim();
+  return {overall,title:cfg.title,head,advice:cfg.advice[overall].replace('{reasons}',reasons.join(', ')),reasons,labNote:cfg.labNote};
 }
+
 function renderSwim(){
+  if(!MODE_CFG) return;
   const d={}; PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) d[p.key]=a.at(-1); });
-  const s=evalSwim(d);
-  document.getElementById('swim-bar').className='glass swim-bar f-'+s.flag;
-  document.getElementById('swim-flag').textContent={green:'🟢',yellow:'🟡',red:'🔴',unknown:'⚪'}[s.flag];
-  document.getElementById('swim-label').textContent=s.label;
+  const s=evalWaterJS(d);
+  const cls={green:'f-green',orange:'f-yellow',red:'f-red',unknown:''}[s.overall];
+  document.getElementById('swim-bar').className='glass swim-bar '+cls;
+  document.getElementById('swim-flag').textContent={green:'🟢',orange:'🟠',red:'🔴',unknown:'⚪'}[s.overall];
+  document.getElementById('swim-label').textContent=`${s.title} — ${s.head}`;
   document.getElementById('swim-reasons').innerHTML =
-    s.reasons.length ? '• '+s.reasons.join('<br>• ') : 'ทุกค่าที่วัดได้อยู่ในเกณฑ์มาตรฐาน';
+    s.reasons.length ? '• '+s.reasons.join('<br>• ') : (s.overall==='green'?'ทุกค่าที่วัดได้อยู่ในเกณฑ์ของโหมดนี้':'');
 }
 
 async function tick(){
@@ -935,10 +987,8 @@ async function tick(){
       v=history[p.key].at(-1);                                 // เคยมี -> คงค่าเดิม (สถานะรวมจะบอก "ค้าง")
     }
     history[p.key].push(v); if(history[p.key].length>HISTORY_LEN)history[p.key].shift();
-    const si=subIndex(p,v), st=statusOf(si);
     animateVal(p,v);
-    const b=document.getElementById('badge-'+p.key); b.className='badge '+st.cls;
-    b.innerHTML=`<span>${st.icon}</span>${st.txt}`;
+    setBadge(p,v);
     const f=forecast(p.key);
     const arrow=!f?'':f.slope>0.01?'↗ กำลังขึ้น':f.slope<-0.01?'↘ กำลังลง':'→ คงที่';
     document.getElementById('fore-'+p.key).textContent=arrow;
@@ -958,8 +1008,72 @@ async function tick(){
   updateStatus();
 }
 
+/* =========================================================================
+   โหมดมาตรฐานคุณภาพน้ำ (6 ประเภท) — โหลด config + sync กับ Supabase (app_settings)
+   ========================================================================= */
+let MODE_CFG=null, CUR_MODE='recreation', modeSbClient=null;
+
+function firstEmoji(s){ const m=[...(s||'')]; return m.length?m[0]:'🌊'; }
+
+function setBadge(p,v){
+  const b=document.getElementById('badge-'+p.key); if(!b)return;
+  const ms=paramStatusMode(p.key,v);
+  if(ms){
+    const map={green:['good','🟢','ปลอดภัย'],orange:['warning','🟠','ระวัง'],red:['critical','🔴','อันตราย']}[ms];
+    b.className='badge '+map[0]; b.innerHTML=`<span>${map[1]}</span>${map[2]}`;
+  } else if(v!=null && !isNaN(v)){                 // ค่าไม่อยู่ในเกณฑ์ตัดสิน (เช่น TDS) หรือยังไม่โหลด config
+    b.className='badge nodata'; b.innerHTML='<span>·</span>อ้างอิง';
+  }
+}
+function rebadgeAll(){ PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) setBadge(p,a.at(-1)); }); }
+
+function applyMode(){
+  if(!MODE_CFG)return;
+  const c=MODE_CFG.modes[CUR_MODE];
+  const sel=document.getElementById('mode-select'); if(sel)sel.value=CUR_MODE;
+  document.getElementById('mode-name').textContent=c.name;
+  document.getElementById('mode-ico').textContent=firstEmoji(c.title);
+  const note=document.getElementById('swim-note');
+  if(note)note.textContent='⚠️ '+(c.labNote||'ประเมินจากค่าที่ทุ่นวัดได้เท่านั้น');
+  renderSwim(); rebadgeAll();
+}
+async function setModeWeb(k){
+  if(!MODE_CFG||!MODE_CFG.modes[k])return;
+  CUR_MODE=k;
+  if(CONFIG.mode==='supabase'){
+    try{ modeSbClient=modeSbClient||supabase.createClient(CONFIG.supabase.url,CONFIG.supabase.anonKey);
+      await modeSbClient.from('app_settings').update({value:k,updated_at:new Date().toISOString()}).eq('key','mode');
+    }catch(e){ console.warn('save mode fail',e); }
+  } else { try{ localStorage.setItem('buoy_mode',k); }catch(e){} }
+  applyMode();
+}
+async function initModes(){
+  try{ MODE_CFG=await (await fetch('water-modes.json',{cache:'no-store'})).json(); }
+  catch(e){ console.warn('โหลด water-modes.json ไม่ได้',e); return; }
+  CUR_MODE=MODE_CFG.defaultMode||'recreation';
+  const sel=document.getElementById('mode-select');
+  sel.innerHTML=Object.entries(MODE_CFG.modes).map(([k,c])=>`<option value="${k}">${c.id}. ${c.name}</option>`).join('');
+  sel.onchange=()=>setModeWeb(sel.value);
+  if(CONFIG.mode==='supabase'){
+    try{ modeSbClient=modeSbClient||supabase.createClient(CONFIG.supabase.url,CONFIG.supabase.anonKey);
+      const {data}=await modeSbClient.from('app_settings').select('value').eq('key','mode').maybeSingle();
+      if(data&&MODE_CFG.modes[data.value])CUR_MODE=data.value;
+      // sync สด: ถ้าเปลี่ยนโหมดผ่าน Telegram หรืออีกหน้าจอ เว็บนี้อัปเดตตาม
+      modeSbClient.channel('app_settings-mode')
+        .on('postgres_changes',{event:'*',schema:'public',table:'app_settings',filter:'key=eq.mode'},
+          pl=>{ const v=pl.new&&pl.new.value; if(v&&MODE_CFG.modes[v]){CUR_MODE=v;applyMode();} })
+        .subscribe();
+    }catch(e){ console.warn('อ่านโหมดจาก Supabase ไม่ได้',e); }
+  } else {
+    try{ const s=localStorage.getItem('buoy_mode'); if(s&&MODE_CFG.modes[s])CUR_MODE=s; }catch(e){}
+  }
+  applyMode();
+}
+
 buildCards();
+buildExportPick();
 initSource();
+initModes();
 tick();
 setInterval(tick,2000);
 </script>

@@ -261,31 +261,37 @@ void loop(){
   if(!modem.isGprsConnected() && !connect4G()) return;
 
   // ---- อ่านค่าจาก sensor ----
+  bool ok = true;                                  // FAKE = ไลฟ์เสมอ ; ของจริงเซ็ตด้านล่าง
 #if USE_FAKE
   sDO=rnd(4,9); sDOpct=rnd(70,120); sTemp=rnd(26,31); sPH=rnd(7.5,8.5);
   sSal=rnd(28,35); sCond=rnd(40,55); sTDS=rnd(28,40); sTurb=rnd(1,25);
 #else
-  bool ok=false;
+  ok=false;
   for(int a=0; a<3 && !ok; a++){ ok=readSensor(); if(!ok) delay(250); }   // ลองซ้ำได้ 3 ครั้ง
-  if(!ok){ Serial.println("อ่าน sensor ไม่สำเร็จ — ข้ามรอบนี้ (ไม่ส่งค่ามั่ว)"); return; }
-  Serial.printf("Sensor: DO=%.2f DO%%=%.0f temp=%.2f pH=%.2f sal=%.2f cond=%.2f tds=%.2f turb=%.1f\n",
-                sDO, sDOpct, sTemp, sPH, sSal, sCond, sTDS, sTurb);
+  if(ok) Serial.printf("Sensor: DO=%.2f DO%%=%.0f temp=%.2f pH=%.2f sal=%.2f cond=%.2f tds=%.2f turb=%.1f\n",
+                       sDO, sDOpct, sTemp, sPH, sSal, sCond, sTDS, sTurb);
+  else   Serial.println("อ่าน sensor ไม่สำเร็จ — ส่ง heartbeat (sensor_ok=false) เพื่อบอกว่า ESP ยังไลฟ์");
+  // เดิม: ถ้าอ่านไม่ได้จะ 'ข้ามรอบ' ทำให้ฝั่งบกแยกไม่ออกว่า sensor เสีย หรือ ESP หลุด
+  // ใหม่: ส่งแถว heartbeat (sensor_ok=false ไม่มีค่ามั่ว) เพื่อบอกว่า ESP+4G ยังทำงาน
 #endif
 
   if(readGPS()) Serial.println("GPS: " + String(gLat,6) + ", " + String(gLon,6));
   else          Serial.println("GPS: ยังไม่ล็อกพิกัด (เสาต้องเห็นฟ้า)");
 
-  // สร้าง JSON (คอลัมน์ตรงกับ probe ที่ sensor จริงอ่านได้ = ที่ Dashboard แสดง)
+  // สร้าง JSON — ส่ง sensor_ok เสมอ (heartbeat) ; ค่าจริงส่งเฉพาะตอนอ่าน sensor สำเร็จ
   String body = "{";
   body += "\"device\":\"" DEVICE_ID "\",";
-  body += "\"do_val\":" + String(sDO,2)    + ",";
-  body += "\"do_pct\":" + String(sDOpct,1) + ",";
-  body += "\"temp\":"   + String(sTemp,2)  + ",";
-  body += "\"ph\":"     + String(sPH,2)    + ",";
-  body += "\"sal\":"    + String(sSal,2)   + ",";
-  body += "\"cond\":"   + String(sCond,2)  + ",";
-  body += "\"tds\":"    + String(sTDS,2)   + ",";
-  body += "\"turb\":"   + String(sTurb,2);
+  body += "\"sensor_ok\":" + String(ok ? "true" : "false");
+  if(ok){
+    body += ",\"do_val\":" + String(sDO,2);
+    body += ",\"do_pct\":" + String(sDOpct,1);
+    body += ",\"temp\":"   + String(sTemp,2);
+    body += ",\"ph\":"     + String(sPH,2);
+    body += ",\"sal\":"    + String(sSal,2);
+    body += ",\"cond\":"   + String(sCond,2);
+    body += ",\"tds\":"    + String(sTDS,2);
+    body += ",\"turb\":"   + String(sTurb,2);
+  }
   if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง
     body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);
   body += "}";
