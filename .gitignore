@@ -32,3 +32,6 @@ __pycache__/
 supabase/.temp/
 supabase/.branches/
 
+# ===== โฟลเดอร์ demo/ทดสอบ UI (browser profile ~228MB — ห้าม commit) =====
+ui-preview/
+
