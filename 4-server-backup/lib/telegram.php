@@ -232,7 +232,11 @@ function tg_fmt_status($r) {
     foreach ($ev['params'] as $p) $m .= "\n     " . wm_dot($p['status']) . " " . $p['label'] . ": " . $p['text'];
 
     $f = function ($v, $d = 2) { return ($v === null || $v === '') ? '–' : number_format((float)$v, $d); };
-    if (($r['tds'] ?? null) !== null) $m .= "\n     💧 TDS: " . $f($r['tds'], 0) . " mg/L (คำนวณ)";
+    if (($r['tds'] ?? null) !== null) {              // TDS = คำนวณจาก EC -> ใช้สีตามสถานะ EC (cond)
+        $condSt = null;
+        foreach ($ev['params'] as $p) if ($p['key'] === 'cond') $condSt = $p['status'];
+        $m .= "\n     " . ($condSt ? wm_dot($condSt) : "▫️") . " TDS: " . $f($r['tds'], 0) . " mg/L (คำนวณจาก EC)";
+    }
     // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น
     $extra = wm_config()['extra'] ?? [];
     foreach (['chl','orp','oil','algae'] as $key) {

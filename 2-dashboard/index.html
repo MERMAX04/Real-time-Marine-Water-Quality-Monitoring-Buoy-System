@@ -1020,7 +1020,8 @@ function extraStatusJS(k,v){
 }
 function setBadge(p,v){
   const b=document.getElementById('badge-'+p.key); if(!b)return;
-  const ms=paramStatusMode(p.key,v) || extraStatusJS(p.key,v);   // เกณฑ์โหมด ไม่มีก็ลองค่าเสริม
+  let ms=paramStatusMode(p.key,v) || extraStatusJS(p.key,v);   // เกณฑ์โหมด ไม่มีก็ลองค่าเสริม
+  if(!ms && p.key==='tds'){ const cv=history['cond'] && history['cond'].at(-1); ms=paramStatusMode('cond',cv); }  // TDS = คำนวณจาก EC -> ใช้สี EC
   if(ms){
     const map={green:['good','🟢','ปลอดภัย'],orange:['warning','🟠','ระวัง'],red:['critical','🔴','อันตราย']}[ms];
     b.className='badge '+map[0]; b.innerHTML=`<span>${map[1]}</span>${map[2]}`;

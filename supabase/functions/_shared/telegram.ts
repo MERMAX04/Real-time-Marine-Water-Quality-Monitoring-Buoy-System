@@ -69,7 +69,11 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
   for (const p of ev.params) m += `\n     ${STATUS_COLORS[p.status].emoji} ${p.label}: ${p.text}`;
 
   // ค่าที่ไม่ได้อยู่ในเกณฑ์ตัดสิน (แสดงเฉยๆ)
-  const tds = n(r.tds); if (!isNaN(tds)) m += `\n     💧 TDS: ${tds.toFixed(0)} mg/L (คำนวณ)`;
+  const tds = n(r.tds);
+  if (!isNaN(tds)) {                                   // TDS = คำนวณจาก EC -> ใช้สีตามสถานะ EC (cond)
+    const condSt = ev.params.find((p) => p.key === "cond")?.status;
+    m += `\n     ${condSt ? STATUS_COLORS[condSt].emoji : "▫️"} TDS: ${tds.toFixed(0)} mg/L (คำนวณจาก EC)`;
+  }
   // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น
   for (const key of ["chl", "orp", "oil", "algae"]) {
     const v = n((r as Record<string, unknown>)[key]); if (isNaN(v)) continue;
