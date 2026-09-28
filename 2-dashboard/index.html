@@ -149,6 +149,16 @@
     padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;min-width:230px}
   .mode-select:focus{outline:none;border-color:var(--accent2)}
   .mode-select option{background:#0d2136;color:#eaf6ff}
+  /* ---------- Modal ล็อกอินแอดมิน ---------- */
+  .login-overlay{position:fixed;inset:0;background:rgba(3,12,22,.78);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:1000}
+  .login-box{width:min(360px,90vw);padding:26px;display:flex;flex-direction:column;gap:12px}
+  .login-box h3{margin:0 0 4px;font-size:18px;font-weight:800}
+  .login-box .login-sub{font-size:12px;color:var(--muted);margin-top:-6px}
+  .login-box input{background:rgba(255,255,255,.06);border:1px solid var(--glass-brd);border-radius:10px;padding:11px 13px;color:#eaf6ff;font-size:14px}
+  .login-box input:focus{outline:none;border-color:var(--accent2)}
+  .login-err{color:#ff8080;font-size:12.5px;min-height:16px}
+  .login-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:2px}
+  .obtn.primary{background:var(--accent2);color:#04121e;border-color:transparent;font-weight:700}
   /* ---------- ติ๊กเลือกค่า export ---------- */
   .export-pick{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:10px 2px 2px;font-size:12px;color:var(--muted)}
   .export-pick .epk-ttl{font-weight:700;color:#dcefff}
@@ -297,8 +307,8 @@
     </div>
   </header>
 
-  <!-- แถบเลือกโหมดมาตรฐานคุณภาพน้ำ (6 ประเภท) -->
-  <div class="glass mode-bar">
+  <!-- แถบเลือกโหมดมาตรฐานคุณภาพน้ำ (6 ประเภท) — เห็นเฉพาะแอดมิน -->
+  <div class="glass mode-bar" id="mode-bar" style="display:none">
     <div class="mode-info">
       <span class="mode-ico" id="mode-ico">🌊</span>
       <div>
@@ -387,6 +397,21 @@
     โปรเจคจบ · แหล่งข้อมูล: <b>Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
     AI Engine ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
+</div>
+
+<!-- Modal ล็อกอินแอดมิน (เปิดเมื่อเข้า /admin) -->
+<div id="login-modal" class="login-overlay">
+  <div class="login-box glass">
+    <h3>🔐 เข้าสู่ระบบแอดมิน</h3>
+    <div class="login-sub">เข้าสู่ระบบเพื่อเปิดใช้การเลือกโหมดมาตรฐาน</div>
+    <input id="login-user" type="text" placeholder="ชื่อผู้ใช้" autocomplete="username">
+    <input id="login-pass" type="password" placeholder="รหัสผ่าน" autocomplete="current-password">
+    <div id="login-err" class="login-err"></div>
+    <div class="login-actions">
+      <button id="login-cancel" class="obtn">ยกเลิก</button>
+      <button id="login-submit" class="obtn primary">เข้าสู่ระบบ</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1052,13 +1077,48 @@ function applyMode(){
 }
 async function setModeWeb(k){
   if(!MODE_CFG||!MODE_CFG.modes[k])return;
-  CUR_MODE=k;
+  if(!isAdmin()){ openLogin(); applyMode(); return; }              // เปลี่ยนโหมดได้เฉพาะแอดมิน
   if(CONFIG.mode==='supabase'){
-    try{ modeSbClient=modeSbClient||supabase.createClient(CONFIG.supabase.url,CONFIG.supabase.anonKey);
-      await modeSbClient.from('app_settings').update({value:k,updated_at:new Date().toISOString()}).eq('key','mode');
-    }catch(e){ console.warn('save mode fail',e); }
-  } else { try{ localStorage.setItem('buoy_mode',k); }catch(e){} }
-  applyMode();
+    try{
+      const r=await fetch(ADMIN_FN,{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({action:'setmode',token:adminToken,mode:k})});
+      const j=await r.json().catch(()=>({}));
+      if(j.ok){ CUR_MODE=k; applyMode(); }                         // realtime จะ sync จออื่นให้เอง
+      else if(r.status===403){ logoutAdmin(); openLogin(); applyMode(); }  // token หมดอายุ
+      else { console.warn('setmode failed',j); applyMode(); }
+    }catch(e){ console.warn('setmode error',e); applyMode(); }
+  } else { CUR_MODE=k; try{ localStorage.setItem('buoy_mode',k); }catch(e){} applyMode(); }
+}
+
+/* ---------- สิทธิ์: admin (เห็น+เปลี่ยนโหมด) vs user (ดูอย่างเดียว ซ่อนแถบโหมด) ---------- */
+let adminToken=null; try{ adminToken=sessionStorage.getItem('buoy_admin_token'); }catch(e){}
+const ADMIN_FN=CONFIG.supabase.url+'/functions/v1/admin';
+function isAdmin(){ return !!adminToken; }
+function applyRole(){ const bar=document.getElementById('mode-bar'); if(bar) bar.style.display=isAdmin()?'flex':'none'; }
+function logoutAdmin(){ adminToken=null; try{sessionStorage.removeItem('buoy_admin_token');}catch(e){} applyRole(); }
+function openLogin(){ const m=document.getElementById('login-modal'); document.getElementById('login-err').textContent=''; m.style.display='flex'; setTimeout(()=>document.getElementById('login-user').focus(),50); }
+function closeLogin(){ document.getElementById('login-modal').style.display='none'; }
+async function doLogin(){
+  const user=document.getElementById('login-user').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  const err=document.getElementById('login-err'); err.textContent='กำลังตรวจสอบ…';
+  try{
+    const r=await fetch(ADMIN_FN,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({action:'login',user,pass})});
+    const j=await r.json().catch(()=>({}));
+    if(j.ok&&j.token){
+      adminToken=j.token; try{sessionStorage.setItem('buoy_admin_token',j.token);}catch(e){}
+      document.getElementById('login-pass').value=''; closeLogin(); applyRole();
+      history.replaceState(null,'','/');                            // เคลียร์ /admin ออกจาก URL
+    } else { err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; }
+  }catch(e){ err.textContent='เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่'; }
+}
+function initAuth(){
+  applyRole();
+  document.getElementById('login-submit').onclick=doLogin;
+  document.getElementById('login-cancel').onclick=()=>{ closeLogin(); if(location.pathname.replace(/\/+$/,'').endsWith('/admin')) history.replaceState(null,'','/'); };
+  document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+  document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+  if(location.pathname.replace(/\/+$/,'').endsWith('/admin') && !isAdmin()) openLogin();   // /admin -> เด้ง login
 }
 async function initModes(){
   try{ MODE_CFG=await (await fetch('water-modes.json',{cache:'no-store'})).json(); }
@@ -1085,6 +1145,7 @@ async function initModes(){
 
 buildCards();
 buildExportPick();
+initAuth();
 initSource();
 initModes();
 tick();

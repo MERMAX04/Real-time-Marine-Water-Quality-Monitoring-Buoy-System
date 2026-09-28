@@ -24,13 +24,11 @@ drop policy if exists "app_settings read" on public.app_settings;
 create policy "app_settings read" on public.app_settings
   for select using (true);
 
--- เปลี่ยนโหมดจากเว็บได้ (อัปเดตค่าเดิม) — จำกัดเฉพาะ key 'mode'
+-- เปลี่ยนโหมด: อนุญาตเฉพาะผ่าน Edge Function 'admin' (service_role bypass RLS) เท่านั้น
+-- anon อ่านได้อย่างเดียว เปลี่ยนตรงไม่ได้ — กัน user ยิง API เปลี่ยนโหมดเอง
 drop policy if exists "app_settings update mode" on public.app_settings;
-create policy "app_settings update mode" on public.app_settings
-  for update using (key = 'mode') with check (key = 'mode');
-
--- สิทธิ์ระดับตาราง (เผื่อ default ไม่ได้ให้ไว้) — RLS ยังคุมเงื่อนไขอยู่
-grant select, update on public.app_settings to anon, authenticated;
+grant select on public.app_settings to anon, authenticated;
+revoke update on public.app_settings from anon, authenticated;
 
 -- เปิด realtime: เปลี่ยนโหมดจาก Telegram/อีกจอ แล้วหน้าเว็บที่เปิดอยู่อัปเดตตามทันที
 do $$
