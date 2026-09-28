@@ -31,7 +31,7 @@
 #include <TinyGsmClient.h>
 
 // ===================== แก้ค่าตรงนี้ =====================
-const char APN[]  = "www.dtac.co.th";  // DTAC (ถ้าต่อไม่ติดลอง "internet"); AIS/True = "internet" — user/pass เว้นว่าง
+const char APN[]  = "internet";  // DTAC (ถ้าต่อไม่ติดลอง "internet"); AIS/True = "internet" — user/pass เว้นว่าง
 const char GUSER[]= "";
 const char GPASS[]= "";
 #define SB_HOST  "jjbrgolulggksxnuicgg.supabase.co"     // host ของ Supabase (ไม่มี https://)
@@ -291,6 +291,10 @@ void loop(){
     body += ",\"cond\":"   + String(sCond,2);
     body += ",\"tds\":"    + String(sTDS,2);
     body += ",\"turb\":"   + String(sTurb,2);
+    body += ",\"chl\":"    + String(sChl,2);    // คลอโรฟิลล์ (µg/L)
+    body += ",\"orp\":"    + String(sORP,1);    // ORP (mV)
+    body += ",\"oil\":"    + String(sOIW,2);    // น้ำมัน/OIW (µg/L)
+    // BGA (algae) ไม่อยู่ใน frame 0x2600 (11 ค่า) — ส่งไม่ได้จนกว่าจะอ่าน register เพิ่ม
   }
   if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง
     body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);

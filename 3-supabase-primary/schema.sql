@@ -35,6 +35,10 @@ alter table public.readings add column if not exists tds    real;
 alter table public.readings add column if not exists lat    double precision;
 alter table public.readings add column if not exists lon    double precision;
 alter table public.readings add column if not exists sensor_ok boolean not null default true;
+alter table public.readings add column if not exists chl    real;   -- คลอโรฟิลล์ (µg/L)
+alter table public.readings add column if not exists orp    real;   -- ORP (mV)
+alter table public.readings add column if not exists oil    real;   -- น้ำมัน/OIW (µg/L)
+alter table public.readings add column if not exists algae  real;   -- BGA (Cells/mL) — เผื่ออนาคต
 
 -- index: ดึง "ล่าสุด/ย้อนหลัง" ของแต่ละทุ่นให้เร็ว
 create index if not exists idx_readings_device_time

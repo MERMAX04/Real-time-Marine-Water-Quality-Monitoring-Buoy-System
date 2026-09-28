@@ -422,22 +422,18 @@ const PARAMS = [
   { key:'do',    th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L',  icon:'🫧', color:'var(--c-do)',    ideal:[4,8],      range:[2,10],     w:.18 },
   { key:'do_pct',th:'ออกซิเจน (อิ่มตัว)',en:'DO Saturation',   unit:'%',     icon:'📊', color:'var(--c-dopct)', ideal:[80,120],   range:[0,200],    w:.10 },
   { key:'temp',  th:'อุณหภูมิ',         en:'Temperature',       unit:'°C',    icon:'🌡️', color:'var(--c-temp)',  ideal:[26,31],    range:[20,36],    w:.10 },
-  { key:'ph',    th:'ความเป็นกรด-ด่าง', en:'pH',                unit:'',      icon:'🧪', color:'var(--c-ph)',    ideal:[7.5,8.5],  range:[6,9],      w:.15 },
+  { key:'ph',    th:'ความเป็นกรด-ด่าง', en:'Potential of Hydrogen', unit:'', icon:'🧪', color:'var(--c-ph)',    ideal:[7.5,8.5],  range:[6,9],      w:.15 },
   { key:'sal',   th:'ความเค็ม',         en:'Salinity',          unit:'ppt',   icon:'🧂', color:'var(--c-sal)',   ideal:[30,34],    range:[26,36],    w:.13 },
   { key:'cond',  th:'การนำไฟฟ้า',       en:'Conductivity',      unit:'mS/cm', icon:'⚡', color:'var(--c-cond)',  ideal:[40,55],    range:[0,65],     w:.12 },
   /* TDS ไม่ใช่หัววัดแยก — คู่มือไม่มี probe TDS, ค่านี้คำนวณจากการนำไฟฟ้า (EC×~0.65) */
   { key:'tds',   th:'สารละลายรวม',      en:'TDS (คำนวณจาก EC)', unit:'mg/L',  icon:'⚗️', color:'var(--c-tds)',   ideal:[0,45000],  range:[0,50000],  w:.09 },
   { key:'turb',  th:'ความขุ่น',         en:'Turbidity',         unit:'NTU',   icon:'🌫️', color:'var(--c-turb)',  ideal:[0,10],     range:[0,50],     w:.13 },
+  /* ค่าเสริมจาก probe แสง/ORP — แสดงครบ 11 พารามิเตอร์ (ขึ้น "ไม่มีข้อมูล" ถ้า sensor ไม่มี probe หรือทุ่นยังไม่ส่งค่านี้) */
+  { key:'chl',  th:'คลอโรฟิลล์',              en:'Chlorophyll (CHL)',         unit:'µg/L',     icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.10 },
+  { key:'orp',  th:'ศักย์ออกซิเดชัน-รีดักชัน', en:'Oxidation-Reduction (ORP)', unit:'mV',       icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
+  { key:'oil',  th:'น้ำมัน/ไฮโดรคาร์บอน',      en:'Oil in Water (OIW)',        unit:'µg/L',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,1],      range:[0,50],     w:.10 },
+  { key:'algae',th:'สาหร่ายสีเขียวแกมน้ำเงิน', en:'Blue-Green Algae (BGA)',    unit:'Cells/mL', icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.10 },
 ];
-/* ------------------------------------------------------------------------
-   ค่าที่ "ซ่อนไว้ก่อน" — sensor ตัวนี้อ่านได้ 0 (ORP=ไม่มี probe แน่ ; chl/oil/algae
-   เป็นเซนเซอร์แสง อาจมี probe แต่ในอากาศ=0). ถ้าจุ่มน้ำแล้วพบว่ามีค่าจริง
-   ให้ย้ายบรรทัดที่ต้องการกลับเข้า PARAMS ด้านบน (คอลัมน์ยังอยู่ใน Supabase):
-   { key:'chl',  th:'คลอโรฟิลล์',      en:'Chlorophyll-a',    unit:'µg/L',    icon:'🌿', color:'var(--c-chl)',  ideal:[0,5],      range:[0,20],     w:.10 },
-   { key:'orp',  th:'ศักย์ออกซิเดชัน', en:'ORP',               unit:'mV',      icon:'⚡', color:'var(--c-orp)',  ideal:[200,400],  range:[100,500],  w:.10 },
-   { key:'oil',  th:'น้ำมัน',          en:'Oil in Water',      unit:'ppm',     icon:'🛢️', color:'var(--c-oil)',  ideal:[0,2],      range:[0,15],     w:.10 },
-   { key:'algae',th:'สาหร่ายสีเขียว',  en:'Blue-Green Algae',  unit:'cells/mL',icon:'🦠', color:'var(--c-algae)',ideal:[0,20000],  range:[0,120000], w:.10 },
-   ------------------------------------------------------------------------ */
 
 const HISTORY_LEN = 120;
 const history = {}, times = [];

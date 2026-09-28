@@ -70,7 +70,9 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
 
   // ค่าที่ไม่ได้อยู่ในเกณฑ์ตัดสิน (แสดงเฉยๆ)
   const tds = n(r.tds); if (!isNaN(tds)) m += `\n     💧 TDS: ${tds.toFixed(0)} mg/L`;
+  const chl = n(r.chl); if (!isNaN(chl)) m += `\n     🌿 คลอโรฟิลล์: ${chl.toFixed(2)} µg/L`;
   const orp = n(r.orp); if (!isNaN(orp)) m += `\n     🔬 ORP: ${orp.toFixed(1)} mV`;
+  const oil = n(r.oil); if (!isNaN(oil)) m += `\n     🛢️ น้ำมัน: ${oil.toFixed(2)} µg/L`;
   if (n(r.lat) >= -90 && n(r.lat) <= 90 && !isNaN(n(r.lon)))
     m += `\n     📍 พิกัด: ${n(r.lat).toFixed(6)}, ${n(r.lon).toFixed(6)}`;
 
