@@ -3,7 +3,7 @@
 //   ส่งข้อความ + จัดรูป /status (แยกสีต่อค่า) + /swim (สถานะรวมตามโหมด)
 //   ตรรกะ/เกณฑ์ทั้งหมดมาจาก water-eval.ts + water-modes.json (แก้ที่นั่นที่เดียว)
 // =========================================================================
-import { evalWater, STATUS_COLORS, MODES, getMode, setMode, modeKeyValid, DEFAULT_MODE } from "./water-eval.ts";
+import { evalWater, STATUS_COLORS, MODES, EXTRA, extraStatus, getMode, setMode, modeKeyValid, DEFAULT_MODE } from "./water-eval.ts";
 import type { WaterEval } from "./water-eval.ts";
 export { getMode, setMode, MODES, modeKeyValid, DEFAULT_MODE };
 
@@ -69,11 +69,14 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
   for (const p of ev.params) m += `\n     ${STATUS_COLORS[p.status].emoji} ${p.label}: ${p.text}`;
 
   // ค่าที่ไม่ได้อยู่ในเกณฑ์ตัดสิน (แสดงเฉยๆ)
-  const tds = n(r.tds); if (!isNaN(tds)) m += `\n     💧 TDS: ${tds.toFixed(0)} mg/L`;
-  const chl = n(r.chl); if (!isNaN(chl)) m += `\n     🌿 คลอโรฟิลล์: ${chl.toFixed(2)} µg/L`;
-  const orp = n(r.orp); if (!isNaN(orp)) m += `\n     🔬 ORP: ${orp.toFixed(1)} mV`;
-  const oil = n(r.oil); if (!isNaN(oil)) m += `\n     🛢️ น้ำมัน: ${oil.toFixed(2)} µg/L`;
-  const alg = n(r.algae); if (!isNaN(alg)) m += `\n     🦠 สาหร่าย (BGA): ${alg.toFixed(1)} Cells/mL`;
+  const tds = n(r.tds); if (!isNaN(tds)) m += `\n     💧 TDS: ${tds.toFixed(0)} mg/L (คำนวณ)`;
+  // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น
+  for (const key of ["chl", "orp", "oil", "algae"]) {
+    const v = n((r as Record<string, unknown>)[key]); if (isNaN(v)) continue;
+    const c = EXTRA[key]; if (!c) continue;
+    const st = extraStatus(v, key);
+    m += `\n     ${st ? STATUS_COLORS[st].emoji : "▫️"} ${c.label}: ${v.toFixed(c.dec)}${c.unit ? " " + c.unit : ""}`;
+  }
   if (n(r.lat) >= -90 && n(r.lat) <= 90 && !isNaN(n(r.lon)))
     m += `\n     📍 พิกัด: ${n(r.lat).toFixed(6)}, ${n(r.lon).toFixed(6)}`;
 

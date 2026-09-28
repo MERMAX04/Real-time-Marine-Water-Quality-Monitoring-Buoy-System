@@ -36,6 +36,15 @@ function bandStatus(v: number, green: Band, orange: Band): Status {
   return "red";
 }
 
+// ค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด แสดงสีสถานะแต่ไม่กระทบสถานะรวม
+export const EXTRA = ((modesConfig as any).extra ?? {}) as Record<
+  string, { label: string; unit: string; dec: number; green: Band; orange: Band }
+>;
+export function extraStatus(v: number, key: string): Status | null {
+  const c = EXTRA[key];
+  return c ? bandStatus(v, c.green, c.orange) : null;
+}
+
 export type ParamEval = {
   key: string; label: string; unit: string;
   value: number; text: string;      // "3.50 mg/L"

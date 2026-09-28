@@ -1012,13 +1012,19 @@ let MODE_CFG=null, CUR_MODE='recreation', modeSbClient=null;
 
 function firstEmoji(s){ const m=[...(s||'')]; return m.length?m[0]:'🌊'; }
 
+/* สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไปจาก MODE_CFG.extra */
+function extraStatusJS(k,v){
+  if(!MODE_CFG||!MODE_CFG.extra||v==null||isNaN(v)) return null;
+  const c=MODE_CFG.extra[k]; if(!c) return null;
+  return bandStatusJS(v,c.green,c.orange);
+}
 function setBadge(p,v){
   const b=document.getElementById('badge-'+p.key); if(!b)return;
-  const ms=paramStatusMode(p.key,v);
+  const ms=paramStatusMode(p.key,v) || extraStatusJS(p.key,v);   // เกณฑ์โหมด ไม่มีก็ลองค่าเสริม
   if(ms){
     const map={green:['good','🟢','ปลอดภัย'],orange:['warning','🟠','ระวัง'],red:['critical','🔴','อันตราย']}[ms];
     b.className='badge '+map[0]; b.innerHTML=`<span>${map[1]}</span>${map[2]}`;
-  } else if(v!=null && !isNaN(v)){                 // ค่าไม่อยู่ในเกณฑ์ตัดสิน (เช่น TDS) หรือยังไม่โหลด config
+  } else if(v!=null && !isNaN(v)){                 // ค่าไม่มีเกณฑ์ตัดสิน (เช่น TDS) หรือยังไม่โหลด config
     b.className='badge nodata'; b.innerHTML='<span>·</span>อ้างอิง';
   }
 }

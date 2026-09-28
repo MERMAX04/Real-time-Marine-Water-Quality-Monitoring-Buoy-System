@@ -100,6 +100,13 @@ function wm_band_status($v, $green, $orange) {
     return 'red';
 }
 
+// สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด
+function wm_extra_status($v, $key) {
+    $extra = wm_config()['extra'] ?? [];
+    if (!isset($extra[$key])) return null;
+    return wm_band_status($v, $extra[$key]['green'], $extra[$key]['orange']);
+}
+
 function wm_dot($s) {
     $map = ['green' => '🟢', 'orange' => '🟠', 'red' => '🔴', 'unknown' => '⚪'];
     return $map[$s] ?? '⚪';
@@ -225,11 +232,15 @@ function tg_fmt_status($r) {
     foreach ($ev['params'] as $p) $m .= "\n     " . wm_dot($p['status']) . " " . $p['label'] . ": " . $p['text'];
 
     $f = function ($v, $d = 2) { return ($v === null || $v === '') ? '–' : number_format((float)$v, $d); };
-    if (($r['tds'] ?? null) !== null) $m .= "\n     💧 TDS: " . $f($r['tds'], 0) . " mg/L";
-    if (($r['chl'] ?? null) !== null) $m .= "\n     🌿 คลอโรฟิลล์: " . $f($r['chl'], 2) . " µg/L";
-    if (($r['orp'] ?? null) !== null) $m .= "\n     🔬 ORP: " . $f($r['orp'], 1) . " mV";
-    if (($r['oil'] ?? null) !== null) $m .= "\n     🛢️ น้ำมัน: " . $f($r['oil'], 2) . " µg/L";
-    if (($r['algae'] ?? null) !== null) $m .= "\n     🦠 สาหร่าย (BGA): " . $f($r['algae'], 1) . " Cells/mL";
+    if (($r['tds'] ?? null) !== null) $m .= "\n     💧 TDS: " . $f($r['tds'], 0) . " mg/L (คำนวณ)";
+    // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น
+    $extra = wm_config()['extra'] ?? [];
+    foreach (['chl','orp','oil','algae'] as $key) {
+        if (($r[$key] ?? null) === null) continue;
+        $c = $extra[$key] ?? null; if (!$c) continue;
+        $st = wm_extra_status((float)$r[$key], $key);
+        $m .= "\n     " . ($st ? wm_dot($st) : "▫️") . " " . $c['label'] . ": " . $f($r[$key], $c['dec']) . ($c['unit'] ? " " . $c['unit'] : "");
+    }
     if (($r['lat'] ?? null) !== null && ($r['lon'] ?? null) !== null)
         $m .= "\n     📍 พิกัด: " . $f($r['lat'], 6) . ", " . $f($r['lon'], 6);
 
