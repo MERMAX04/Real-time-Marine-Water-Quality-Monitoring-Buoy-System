@@ -65,7 +65,7 @@ unsigned long lastSend = 0;
 float rnd(float lo, float hi){ return lo + (random(0,1000)/1000.0)*(hi-lo); }
 
 // ---- ค่าอ่านล่าสุดจาก sensor (11 ค่า ตามลำดับ frame 0x2600) ----
-float sDO, sTurb, sCond, sPH, sTemp, sORP, sChl, sOIW, sSal, sTDS, sDOpct;
+float sDO, sTurb, sCond, sPH, sTemp, sORP, sChl, sOIW, sSal, sTDS, sDOpct, sAlgae;
 double gLat=1000, gLon=1000;       // พิกัด GPS ล่าสุด (1000 = ยังไม่ล็อกดาว)
 
 // ---- forward declarations (atCmd/waitFor + atCmd มี default arg) ----
@@ -102,6 +102,27 @@ void rs485Send(const uint8_t* buf, int len){
   SerialRS.flush();                         // รอส่งจบก่อนสลับกลับมารับ
   if(PIN_485_DE >= 0) digitalWrite(PIN_485_DE, LOW);
 }
+// อ่าน 1 ค่า float (2 registers) จาก register ที่ระบุ — คืน true ถ้าอ่านสำเร็จ
+// ใช้กับ OIW(0x260D)/BGA(0x260E) ที่ใช้ "ช่องรวม" ในเฟรม 0x2600 (แยกไม่ออก ต้องอ่านแยก)
+bool readReg1(uint16_t reg, float &out){
+  uint8_t req[8] = {SENSOR_ADDR, 0x03, (uint8_t)(reg>>8), (uint8_t)(reg&0xFF), 0x00, 0x02, 0, 0};
+  uint16_t crc = modbusCRC(req, 6);
+  req[6] = crc & 0xFF; req[7] = (crc >> 8) & 0xFF;
+  while(SerialRS.available()) SerialRS.read();
+  rs485Send(req, 8);
+  const int NEED = 3 + 4 + 2;                       // 01 03 04 <4 ไบต์> <CRC> = 9
+  uint8_t resp[16]; int n = 0; uint32_t t0 = millis();
+  while(n < NEED && millis() - t0 < 500){
+    while(SerialRS.available() && n < (int)sizeof(resp)) resp[n++] = SerialRS.read();
+  }
+  if(n < NEED) return false;
+  if(resp[0] != SENSOR_ADDR || resp[1] != 0x03 || resp[2] != 4) return false;   // exception/frame ผิด
+  uint16_t rc = modbusCRC(resp, 3 + 4);
+  if((rc & 0xFF) != resp[7] || ((rc >> 8) & 0xFF) != resp[8]) return false;      // CRC ไม่ผ่าน
+  memcpy(&out, &resp[3], 4);
+  return true;
+}
+
 // อ่านทุกค่ารวดเดียว: 01 03 26 00 00 16 + CRC -> ตอบ 01 03 2C <44 ไบต์> <CRC> = 49 ไบต์
 // float เป็น IEEE754 little-endian (DCBA) → ESP32 little-endian memcpy ได้ตรงๆ
 bool readSensor(){
@@ -127,7 +148,12 @@ bool readSensor(){
   float f[11];
   for(int i=0;i<11;i++) memcpy(&f[i], &resp[3 + i*4], 4);   // ถอด 11 floats
   sDO=f[0]; sTurb=f[1]; sCond=f[2]; sPH=f[3]; sTemp=f[4];
-  sORP=f[5]; sChl=f[6]; sOIW=f[7]; sSal=f[8]; sTDS=f[9]; sDOpct=f[10];
+  sORP=f[5]; sChl=f[6]; sSal=f[8]; sTDS=f[9]; sDOpct=f[10];   // f[7] = ช่องรวม OIW/BGA -> อ่านแยกด้านล่างแทน
+
+  // OIW กับ BGA ใช้ "ช่องรวม" ในเฟรม (f[7] แยกไม่ออก) -> อ่าน register แยกให้ได้ทั้งคู่ถูกต้อง
+  float v;
+  sOIW   = readReg1(0x260D, v) ? v : NAN;   // OIW (น้ำมัน) µg/L
+  sAlgae = readReg1(0x260E, v) ? v : NAN;   // BGA (สาหร่าย) Cells/mL
   return true;
 }
 
@@ -293,8 +319,8 @@ void loop(){
     body += ",\"turb\":"   + String(sTurb,2);
     body += ",\"chl\":"    + String(sChl,2);    // คลอโรฟิลล์ (µg/L)
     body += ",\"orp\":"    + String(sORP,1);    // ORP (mV)
-    body += ",\"oil\":"    + String(sOIW,2);    // น้ำมัน/OIW (µg/L)
-    // BGA (algae) ไม่อยู่ใน frame 0x2600 (11 ค่า) — ส่งไม่ได้จนกว่าจะอ่าน register เพิ่ม
+    if(!isnan(sOIW))   body += ",\"oil\":"   + String(sOIW,2);    // OIW น้ำมัน (µg/L) — อ่านแยก 0x260D
+    if(!isnan(sAlgae)) body += ",\"algae\":" + String(sAlgae,1);  // BGA สาหร่าย (Cells/mL) — อ่านแยก 0x260E
   }
   if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง
     body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);

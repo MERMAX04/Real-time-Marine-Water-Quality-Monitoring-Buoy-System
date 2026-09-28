@@ -229,6 +229,7 @@ function tg_fmt_status($r) {
     if (($r['chl'] ?? null) !== null) $m .= "\n     🌿 คลอโรฟิลล์: " . $f($r['chl'], 2) . " µg/L";
     if (($r['orp'] ?? null) !== null) $m .= "\n     🔬 ORP: " . $f($r['orp'], 1) . " mV";
     if (($r['oil'] ?? null) !== null) $m .= "\n     🛢️ น้ำมัน: " . $f($r['oil'], 2) . " µg/L";
+    if (($r['algae'] ?? null) !== null) $m .= "\n     🦠 สาหร่าย (BGA): " . $f($r['algae'], 1) . " Cells/mL";
     if (($r['lat'] ?? null) !== null && ($r['lon'] ?? null) !== null)
         $m .= "\n     📍 พิกัด: " . $f($r['lat'], 6) . ", " . $f($r['lon'], 6);
 

@@ -73,6 +73,7 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
   const chl = n(r.chl); if (!isNaN(chl)) m += `\n     🌿 คลอโรฟิลล์: ${chl.toFixed(2)} µg/L`;
   const orp = n(r.orp); if (!isNaN(orp)) m += `\n     🔬 ORP: ${orp.toFixed(1)} mV`;
   const oil = n(r.oil); if (!isNaN(oil)) m += `\n     🛢️ น้ำมัน: ${oil.toFixed(2)} µg/L`;
+  const alg = n(r.algae); if (!isNaN(alg)) m += `\n     🦠 สาหร่าย (BGA): ${alg.toFixed(1)} Cells/mL`;
   if (n(r.lat) >= -90 && n(r.lat) <= 90 && !isNaN(n(r.lon)))
     m += `\n     📍 พิกัด: ${n(r.lat).toFixed(6)}, ${n(r.lon).toFixed(6)}`;
 
