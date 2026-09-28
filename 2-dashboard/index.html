@@ -149,6 +149,9 @@
     padding:10px 14px;font-size:14px;font-weight:600;cursor:pointer;min-width:230px}
   .mode-select:focus{outline:none;border-color:var(--accent2)}
   .mode-select option{background:#0d2136;color:#eaf6ff}
+  .admin-tag{font-size:11px;color:var(--accent2);font-weight:700;border:1px solid var(--accent2);border-radius:999px;padding:1px 8px;margin-left:6px;white-space:nowrap}
+  .logout-pill{cursor:pointer;color:#ff8080;border:1px solid rgba(255,128,128,.4);font-weight:700}
+  .logout-pill:hover{background:rgba(255,128,128,.12)}
   /* ---------- Modal ล็อกอินแอดมิน ---------- */
   .login-overlay{position:fixed;inset:0;background:rgba(3,12,22,.78);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;z-index:1000}
   .login-box{width:min(360px,90vw);padding:26px;display:flex;flex-direction:column;gap:12px}
@@ -304,6 +307,7 @@
       <span class="pill st-on" id="conn"><span class="dot"></span> <span id="conn-txt">กำลังเชื่อมต่อ…</span></span>
       <span class="pill">📍 <span id="loc">สถานี buoy-01</span></span>
       <span class="pill">🕒 <span id="fresh">อัปเดต: —</span></span>
+      <button class="pill logout-pill" id="logout-btn" style="display:none">🚪 ออกจากระบบ</button>
     </div>
   </header>
 
@@ -312,7 +316,7 @@
     <div class="mode-info">
       <span class="mode-ico" id="mode-ico">🌊</span>
       <div>
-        <div class="mode-ttl">โหมดมาตรฐาน: <b id="mode-name">—</b></div>
+        <div class="mode-ttl">โหมดมาตรฐาน: <b id="mode-name">—</b> <span class="admin-tag">👤 แอดมิน</span></div>
         <div class="mode-sub">เลือกประเภทการใช้งานน้ำ — เกณฑ์ตัดสิน สีสถานะ และการแจ้งเตือนจะปรับตามโหมดนี้ทั้งหมด</div>
       </div>
     </div>
@@ -1094,7 +1098,10 @@ async function setModeWeb(k){
 let adminToken=null; try{ adminToken=sessionStorage.getItem('buoy_admin_token'); }catch(e){}
 const ADMIN_FN=CONFIG.supabase.url+'/functions/v1/admin';
 function isAdmin(){ return !!adminToken; }
-function applyRole(){ const bar=document.getElementById('mode-bar'); if(bar) bar.style.display=isAdmin()?'flex':'none'; }
+function applyRole(){
+  const bar=document.getElementById('mode-bar'); if(bar) bar.style.display=isAdmin()?'flex':'none';
+  const out=document.getElementById('logout-btn'); if(out) out.style.display=isAdmin()?'inline-flex':'none';
+}
 function logoutAdmin(){ adminToken=null; try{sessionStorage.removeItem('buoy_admin_token');}catch(e){} applyRole(); }
 function openLogin(){ const m=document.getElementById('login-modal'); document.getElementById('login-err').textContent=''; m.style.display='flex'; setTimeout(()=>document.getElementById('login-user').focus(),50); }
 function closeLogin(){ document.getElementById('login-modal').style.display='none'; }
@@ -1115,10 +1122,15 @@ async function doLogin(){
 function initAuth(){
   applyRole();
   document.getElementById('login-submit').onclick=doLogin;
-  document.getElementById('login-cancel').onclick=()=>{ closeLogin(); if(location.pathname.replace(/\/+$/,'').endsWith('/admin')) history.replaceState(null,'','/'); };
+  document.getElementById('login-cancel').onclick=()=>{ closeLogin(); history.replaceState(null,'','/'); };   // ยกเลิก -> หน้า user
+  const out=document.getElementById('logout-btn'); if(out) out.onclick=()=>{ logoutAdmin(); history.replaceState(null,'','/'); };
   document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
-  if(location.pathname.replace(/\/+$/,'').endsWith('/admin') && !isAdmin()) openLogin();   // /admin -> เด้ง login
+  const onAdmin = location.pathname.replace(/\/+$/,'').endsWith('/admin');
+  if(onAdmin){
+    if(isAdmin()) history.replaceState(null,'','/');    // ล็อกอินอยู่แล้ว -> ไปหน้าหลัก (ไม่เปิด modal ซ้ำ)
+    else openLogin();                                    // ยังไม่ล็อกอิน -> เปิด modal
+  }
 }
 async function initModes(){
   try{ MODE_CFG=await (await fetch('water-modes.json',{cache:'no-store'})).json(); }
