@@ -371,10 +371,10 @@
       <svg id="radar" viewBox="0 0 400 230"></svg>
     </div>
     <div class="glass panel coords">
-      <div class="kv">ละติจูด<br><b id="lat">7.8804° N</b></div>
-      <div class="kv">ลองจิจูด<br><b id="lon">98.3923° E</b></div>
+      <div class="kv">ละติจูด<br><b id="lat">—</b></div>
+      <div class="kv">ลองจิจูด<br><b id="lon">—</b></div>
       <div class="kv">สัญญาณ 4G<br><b id="sig">▂▄▆█ ดี</b></div>
-      <div class="kv"><a id="maplink" href="https://maps.google.com/?q=7.8804,98.3923" target="_blank" rel="noopener" style="color:#31c8ff;text-decoration:none;font-weight:700">🗺️ เปิดใน Google Maps</a></div>
+      <div class="kv"><a id="maplink" href="#" target="_blank" rel="noopener" style="color:#7a94a8;text-decoration:none;font-weight:700;pointer-events:none;opacity:.55">📍 ยังไม่พบพิกัด GPS</a></div>
     </div>
   </div>
 
@@ -894,12 +894,22 @@ function updateStatus(){
 }
 /* อัปเดตการ์ด "ตำแหน่งทุ่น" จากพิกัด GPS จริง (โหมด supabase/server) */
 function updateLocation(){
-  if(CONFIG.mode==='mock') return;                       // mock: คงพิกัดตัวอย่างไว้
+  if(CONFIG.mode==='mock') return;                       // mock: เดโม ไม่ยุ่งกับพิกัด
+  const link=document.getElementById('maplink');
   const la=Number(sbLatest.lat), lo=Number(sbLatest.lon);
-  if(sbLatest.lat==null||sbLatest.lon==null||isNaN(la)||isNaN(lo)) return;  // ยังไม่มี GPS -> คงค่าเดิม
+  const hasGPS = !(sbLatest.lat==null||sbLatest.lon==null||isNaN(la)||isNaN(lo));
+  if(!hasGPS){                                            // ไม่พบพิกัดใน DB ล่าสุด -> แจ้งชัด ไม่ hardcode
+    document.getElementById('lat').textContent='—';
+    document.getElementById('lon').textContent='—';
+    link.removeAttribute('href'); link.style.pointerEvents='none'; link.style.opacity='.55';
+    link.style.color='#7a94a8'; link.textContent='📍 ยังไม่พบพิกัด GPS';
+    return;
+  }
   document.getElementById('lat').textContent=Math.abs(la).toFixed(6)+'° '+(la>=0?'N':'S');
   document.getElementById('lon').textContent=Math.abs(lo).toFixed(6)+'° '+(lo>=0?'E':'W');
-  document.getElementById('maplink').href='https://maps.google.com/?q='+la.toFixed(6)+','+lo.toFixed(6);
+  link.href='https://maps.google.com/?q='+la.toFixed(6)+','+lo.toFixed(6);
+  link.style.pointerEvents='auto'; link.style.opacity='1'; link.style.color='#31c8ff';
+  link.textContent='🗺️ เปิดใน Google Maps';
 }
 /* การ์ด "ไม่มีข้อมูล" (probe ไม่ได้ต่อ/ยังไม่ได้ค่า) */
 function renderNoData(p){
