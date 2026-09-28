@@ -291,6 +291,7 @@ void loop(){
 #if USE_FAKE
   sDO=rnd(4,9); sDOpct=rnd(70,120); sTemp=rnd(26,31); sPH=rnd(7.5,8.5);
   sSal=rnd(28,35); sCond=rnd(40,55); sTDS=rnd(28,40); sTurb=rnd(1,25);
+  sChl=rnd(0,5); sORP=rnd(200,400); sOIW=rnd(0,1); sAlgae=rnd(0,20000);   // ค่าเสริม (mock)
 #else
   ok=false;
   for(int a=0; a<3 && !ok; a++){ ok=readSensor(); if(!ok) delay(250); }   // ลองซ้ำได้ 3 ครั้ง
