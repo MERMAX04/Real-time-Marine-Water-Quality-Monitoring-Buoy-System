@@ -240,7 +240,9 @@
     .gauge-num{font-size:34px}
     footer{font-size:11px}
   }
-  #radar{width:100%;height:230px;display:block}
+  .map-box{position:relative;width:100%;height:230px;border-radius:12px;overflow:hidden;background:rgba(10,25,40,.5)}
+  .map-box iframe{width:100%;height:100%;border:0;display:none}
+  #map-nogps{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;color:var(--muted);font-weight:600;font-size:14px}
   .coords{display:flex;flex-direction:column;justify-content:center;gap:12px}
   .coords .kv{font-size:13px}.coords .kv b{color:var(--accent2);font-size:17px}
 
@@ -368,7 +370,10 @@
     <div class="glass panel">
       <h2>🛰️ ตำแหน่งทุ่น</h2>
       <div class="sub">พิกัดและสถานะการเชื่อมต่อ</div>
-      <svg id="radar" viewBox="0 0 400 230"></svg>
+      <div class="map-box">
+        <iframe id="map" title="ตำแหน่งทุ่น buoy-01" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+        <div id="map-nogps">📍 ยังไม่พบพิกัด GPS จากทุ่น</div>
+      </div>
     </div>
     <div class="glass panel coords">
       <div class="kv">ละติจูด<br><b id="lat">—</b></div>
@@ -705,7 +710,6 @@ function buildCards(){
     document.getElementById('tblwrap').style.display=showTable?'block':'none';
     document.getElementById('chart').style.display=showTable?'none':'block';renderTable();};
   document.getElementById('exportCsv').onclick=exportCSV;
-  drawRadar();
 }
 
 /* จัดรูปแบบตัวเลขให้เหมาะกับแต่ละค่า (หลักพัน=ใส่ comma เช่น cells/mL) */
@@ -852,20 +856,6 @@ function exportCSV(){
   a.download='buoy-history.csv';a.click();
 }
 
-/* เรดาร์ตำแหน่งทุ่น (กวาดวน) */
-function drawRadar(){
-  const svg=document.getElementById('radar');
-  svg.innerHTML=`
-    <defs><radialGradient id="rg"><stop offset="0%" stop-color="rgba(49,200,255,.25)"/><stop offset="100%" stop-color="transparent"/></radialGradient></defs>
-    ${[50,90,130].map(r=>`<circle cx="200" cy="115" r="${r}" fill="none" stroke="rgba(120,200,255,.18)"/>`).join('')}
-    <line x1="60" y1="115" x2="340" y2="115" stroke="rgba(120,200,255,.12)"/>
-    <line x1="200" y1="15" x2="200" y2="215" stroke="rgba(120,200,255,.12)"/>
-    <circle cx="200" cy="115" r="130" fill="url(#rg)"/>
-    <g><path d="M200,115 L200,-15 A130,130 0 0 1 313,50 Z" fill="rgba(90,255,214,.14)">
-      <animateTransform attributeName="transform" type="rotate" from="0 200 115" to="360 200 115" dur="4s" repeatCount="indefinite"/></path></g>
-    <circle cx="200" cy="115" r="7" fill="#5affd6"><animate attributeName="r" values="7;11;7" dur="2s" repeatCount="indefinite"/></circle>
-    <text x="200" y="145" fill="#eaf6ff" font-size="12" text-anchor="middle">🌊 ${CONFIG.device}</text>`;
-}
 
 /* =========================================================================
    ลูปอัปเดตหลัก
@@ -896,6 +886,7 @@ function updateStatus(){
 function updateLocation(){
   if(CONFIG.mode==='mock') return;                       // mock: เดโม ไม่ยุ่งกับพิกัด
   const link=document.getElementById('maplink');
+  const iframe=document.getElementById('map'), nogps=document.getElementById('map-nogps');
   const la=Number(sbLatest.lat), lo=Number(sbLatest.lon);
   const hasGPS = !(sbLatest.lat==null||sbLatest.lon==null||isNaN(la)||isNaN(lo));
   if(!hasGPS){                                            // ไม่พบพิกัดใน DB ล่าสุด -> แจ้งชัด ไม่ hardcode
@@ -903,13 +894,23 @@ function updateLocation(){
     document.getElementById('lon').textContent='—';
     link.removeAttribute('href'); link.style.pointerEvents='none'; link.style.opacity='.55';
     link.style.color='#7a94a8'; link.textContent='📍 ยังไม่พบพิกัด GPS';
+    if(iframe){ iframe.style.display='none'; iframe.removeAttribute('src'); iframe.dataset.q=''; }
+    if(nogps) nogps.style.display='flex';
     return;
   }
   document.getElementById('lat').textContent=Math.abs(la).toFixed(6)+'° '+(la>=0?'N':'S');
   document.getElementById('lon').textContent=Math.abs(lo).toFixed(6)+'° '+(lo>=0?'E':'W');
-  link.href='https://maps.google.com/?q='+la.toFixed(6)+','+lo.toFixed(6);
+  const q=la.toFixed(6)+','+lo.toFixed(6);
+  link.href='https://maps.google.com/?q='+q;
   link.style.pointerEvents='auto'; link.style.opacity='1'; link.style.color='#31c8ff';
   link.textContent='🗺️ เปิดใน Google Maps';
+  // Google Map ฝัง (ไม่ต้องใช้ API key) — โหลดใหม่เฉพาะตอนพิกัดเปลี่ยน
+  if(iframe && iframe.dataset.q!==q){
+    iframe.dataset.q=q;
+    iframe.src='https://maps.google.com/maps?q='+q+'&z=13&hl=th&output=embed';
+    iframe.style.display='block';
+  }
+  if(nogps) nogps.style.display='none';
 }
 /* การ์ด "ไม่มีข้อมูล" (probe ไม่ได้ต่อ/ยังไม่ได้ค่า) */
 function renderNoData(p){
