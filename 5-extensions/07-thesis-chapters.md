@@ -158,6 +158,21 @@ ESP32 (LilyGO T-Call-A7670 V1.0) เชื่อมเซนเซอร์ผ�
 
 ลำดับการจ่ายไฟ: `โซล่าเซลล์ → กล่อง Control → แบตเตอรี่ → Delay → ไฟออก 12V → (Step-down 5V สำหรับ ESP32 + ไฟ 12V สำหรับเซนเซอร์)`
 
+**ผังภาคจ่ายไฟ (Power Supply Diagram)**
+```mermaid
+flowchart LR
+  SOLAR["โซล่าเซลล์<br/>Solar Panel"]
+  CTRL["กล่อง Control<br/>Charge Controller (OLYS)<br/>แปลงไฟ + คุมการชาร์จ"]
+  BAT["แบตเตอรี่ 12V"]
+  DLY["Delay<br/>Time-delay Relay"]
+  OUT(["ไฟออก 12V<br/>ไปเลี้ยงวงจร"])
+
+  SOLAR -->|"ไฟจากแสงอาทิตย์"| CTRL
+  CTRL <-->|"ชาร์จ / ตัดชาร์จ"| BAT
+  BAT -->|"12V"| DLY
+  DLY -->|"12V"| OUT
+```
+
 **ผังการต่อวงจร (Wiring Diagram)**
 ```mermaid
 flowchart LR
