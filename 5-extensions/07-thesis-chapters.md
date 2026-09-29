@@ -147,6 +147,57 @@ ESP32 (LilyGO T-Call-A7670 V1.0) เชื่อมเซนเซอร์ผ�
 ### 3.5.5 ส่วนสิทธิ์ผู้ใช้ (Authentication)
 2 บทบาท (user/admin) โดยรหัสผ่านเก็บใน Supabase secret และตรวจสอบผ่าน Edge Function — ป้องกันการเปลี่ยนโหมดโดยไม่ได้รับอนุญาตทั้งระดับ UI และ API (รายละเอียดดู [`dashboard-admin-role`] และ doc 06 ข้อ 8)
 
+## 3.6 ผังงาน (Program Flowchart)
+
+### 3.6.1 ผังงานการทำงานของโปรแกรมบนทุ่น (Firmware)
+```mermaid
+flowchart TD
+  Start([เริ่มต้น]) --> Init[ตั้งค่า ESP32 + โมเด็ม 4G + RS485]
+  Init --> Wait{ครบ 15 วินาที?}
+  Wait -->|ยัง| Wait
+  Wait -->|ครบ| Net{ต่อ 4G ได้?}
+  Net -->|ไม่ได้| Wait
+  Net -->|ได้| Read[อ่านค่าเซนเซอร์ Modbus]
+  Read --> OK{อ่านสำเร็จ?}
+  OK -->|สำเร็จ| Build[สร้าง JSON 11 ค่า sensor_ok=true]
+  OK -->|ไม่สำเร็จ| HB[สร้าง JSON heartbeat sensor_ok=false]
+  Build --> GPS[อ่านพิกัด GPS]
+  HB --> GPS
+  GPS --> Post[POST ขึ้น Supabase ผ่าน HTTPS/4G]
+  Post --> Wait
+```
+
+### 3.6.2 ผังงานการประเมินคุณภาพน้ำตามโหมด (evalWater)
+```mermaid
+flowchart TD
+  Start([รับค่าน้ำ 1 แถว]) --> Mode[อ่านโหมดปัจจุบันจาก app_settings]
+  Mode --> Sal{ความเค็ม < 1 ppt?}
+  Sal -->|ใช่| Unknown([⚪ ประเมินไม่ได้])
+  Sal -->|ไม่| Loop[วนแต่ละค่า: เทียบช่วงเกณฑ์ของโหมด]
+  Loop --> Color[กำหนดสีต่อค่า: เขียว/ส้ม/แดง]
+  Color --> Crit{มีค่าระดับวิกฤต<br/>เป็นสีแดง?}
+  Crit -->|ใช่| Red([🔴 สถานะรวม = แดง])
+  Crit -->|ไม่| Any{มีค่าใดแดงหรือส้ม?}
+  Any -->|ใช่| Orange([🟠 สถานะรวม = ส้ม])
+  Any -->|ไม่| Green([🟢 สถานะรวม = เขียว])
+  Red --> Msg[แนบข้อความตามโหมด + เหตุผล]
+  Orange --> Msg
+  Green --> Msg
+```
+
+### 3.6.3 ผังงานการแจ้งเตือนอัตโนมัติ (telegram-alert)
+```mermaid
+flowchart TD
+  Start([มีแถวใหม่ใน readings]) --> Eval[ประเมินตามโหมดปัจจุบัน]
+  Eval --> Red{สถานะรวม = แดง?}
+  Red -->|ไม่| End1([จบ ไม่แจ้งเตือน])
+  Red -->|ใช่| Cool{พ้น cooldown 30 นาที?}
+  Cool -->|ยัง| End2([จบ กันเตือนซ้ำ])
+  Cool -->|พ้น| Send[ส่งข้อความหาผู้สมัครทุกคน]
+  Send --> Save[บันทึกเวลาแจ้งเตือน]
+  Save --> End3([จบ])
+```
+
 ---
 ---
 
