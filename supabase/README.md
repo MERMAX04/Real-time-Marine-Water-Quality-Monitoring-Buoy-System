@@ -1,20 +1,25 @@
-# supabase/ — Telegram ฝั่งบก (Edge Functions) 🏝️
+# supabase/ — ฝั่งบก (Edge Functions) 🏝️
 
-Telegram (แจ้งเตือน + คำสั่งแชท) ย้ายมาทำที่ **Supabase** ทั้งหมด — ทุ่น ESP32 ทำแค่ อ่าน sensor → POST
+Telegram (แจ้งเตือน + คำสั่งแชท), การประเมินตาม **6 โหมดมาตรฐานน้ำทะเลไทย** และ **สิทธิ์ admin** ทำที่ **Supabase** ทั้งหมด — ทุ่น ESP32 ทำแค่ อ่าน sensor → POST
 ทำให้ทุ่น **เบา/ประหยัดไฟ/เสถียร** และ `/status` **ตอบเร็ว (<1 วิ)** เพราะอ่านค่าล่าสุดจาก DB ตรงๆ
 
 ```
-ทุ่น ESP32 ──POST──► readings ──(INSERT trigger)──► telegram-alert ──► Telegram (เตือนวิกฤต)
+ทุ่น ESP32 ──POST──► readings ──(INSERT trigger)──► telegram-alert ──► Telegram (เตือนตามโหมด)
                         ▲
-ผู้ใช้ /start,/status ──► telegram-bot (webhook) ──► ตอบทันที
+ผู้ใช้ /start,/status,/swim,/mode ──► telegram-bot (webhook) ──► ตอบทันที
+เว็บ /admin (ล็อกอิน) ──► admin (login/setmode) ──► เปลี่ยนโหมดใน app_settings
 ```
 
 | ไฟล์ | หน้าที่ |
 |------|---------|
 | `schema-telegram.sql` | สร้างตาราง `tg_subscribers`, `alert_state` |
-| `functions/telegram-bot/` | รับคำสั่งแชท (/start /status /stop /help) |
-| `functions/telegram-alert/` | เช็คเกณฑ์ตอนมีแถวใหม่ → เตือนวิกฤต (cooldown 30 นาที) |
-| `functions/_shared/telegram.ts` | ส่งข้อความ + เกณฑ์ + จัดรูป /status (ใช้ร่วม) |
+| `schema-settings.sql` | สร้างตาราง `app_settings` (เก็บโหมด) + **ถอนสิทธิ์ anon update** (เปลี่ยนโหมดได้เฉพาะผ่าน Edge Function admin) |
+| `functions/telegram-bot/` | รับคำสั่งแชท (/start /status /swim /mode /stop /help) |
+| `functions/telegram-alert/` | ประเมินตามโหมดตอนมีแถวใหม่ → เตือนเมื่อสถานะรวม "แดง" (cooldown 30 นาที) |
+| `functions/admin/` | ตรวจรหัสผ่าน admin (login) + เปลี่ยนโหมดแบบปลอดภัย (setmode) ด้วย service_role |
+| `functions/_shared/water-modes.json` | **config กลาง** เกณฑ์ 6 โหมด (คัดลอกไป `2-dashboard/` และ `4-server-backup/lib/`) |
+| `functions/_shared/water-eval.ts` | ตรรกะประเมิน `evalWater` + Model A (วิกฤต→แดง / เฝ้าระวัง→ส้ม) + get/setMode |
+| `functions/_shared/telegram.ts` | ส่งข้อความ + จัดรูป /status /swim + สถานะทุ่น (ใช้ร่วม) |
 
 ---
 
@@ -26,20 +31,25 @@ Telegram (แจ้งเตือน + คำสั่งแชท) ย้า�
 - ผูกโปรเจกต์:  `supabase link --project-ref jjbrgolulggksxnuicgg`
 
 ### 1) สร้างตาราง
-เปิด **Supabase Studio → SQL Editor** → วางเนื้อหา `schema-telegram.sql` → Run
+เปิด **Supabase Studio → SQL Editor** → วางเนื้อหา `schema-telegram.sql` **และ** `schema-settings.sql` → Run (ทีละไฟล์)
 
 ### 2) ตั้งความลับ (secrets) ของ Edge Functions
 ```bash
 supabase secrets set TELEGRAM_BOT_TOKEN="123456789:ABC...ใส่ token จริง"
 supabase secrets set TELEGRAM_WEBHOOK_SECRET="buoy-hook-2026"   # ตั้งเองอะไรก็ได้ (ลับๆ)
 supabase secrets set ALERT_WEBHOOK_SECRET="buoy-alert-2026"     # ตั้งเองอะไรก็ได้ (ลับๆ)
+supabase secrets set TG_ADMINS="123456789,987654321"           # chat_id ที่ใช้ /mode ได้ (คั่นด้วย ,)
+supabase secrets set ADMIN_USER="admin"                        # ชื่อผู้ใช้ล็อกอินเว็บ /admin
+supabase secrets set ADMIN_PASS="ใส่รหัสผ่านที่ปลอดภัย"          # รหัสผ่าน admin (เว็บ /admin)
 ```
 > `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` ไม่ต้องตั้ง — Supabase ใส่ให้อัตโนมัติ
+> 💡 ตั้ง secret ไม่ติด (403 account privileges)? → `set SUPABASE_ACCESS_TOKEN=sbp_...` (จาก Account Tokens) ในเทอร์มินัลนั้นก่อน
 
-### 3) deploy ทั้ง 2 ฟังก์ชัน
+### 3) deploy ทั้ง 3 ฟังก์ชัน
 ```bash
 supabase functions deploy telegram-bot   --no-verify-jwt
 supabase functions deploy telegram-alert --no-verify-jwt
+supabase functions deploy admin          --no-verify-jwt
 ```
 
 ### 4) ชี้ Telegram webhook มาที่ telegram-bot
@@ -69,6 +79,12 @@ Supabase Studio → **Database → Webhooks → Create**
    → ทุก subscriber ต้องได้ 🌊 แจ้งเตือน (DO ต่ำ)
 4. ดู log: `supabase functions logs telegram-alert`
 
-## แก้เกณฑ์เตือน (ไม่ต้อง flash ทุ่น!)
-เกณฑ์อยู่ที่ `functions/_shared/telegram.ts` → `evalAlerts()` แก้แล้ว `supabase functions deploy` ใหม่
-(cooldown อยู่ที่ `functions/telegram-alert/index.ts` → `COOLDOWN_MS`)
+## แก้เกณฑ์ 6 โหมด (ไม่ต้อง flash ทุ่น!)
+เกณฑ์ทั้ง 6 โหมดอยู่ที่ **`functions/_shared/water-modes.json`** (config กลาง) — แก้แล้ว deploy ฟังก์ชันที่ใช้ร่วมใหม่
+> ⚠️ ไฟล์นี้มี 3 ชุดต้องตรงกัน: `supabase/functions/_shared/`, `2-dashboard/`, `4-server-backup/lib/` — แก้แล้วคัดลอกให้ครบทั้ง 3 ที่
+(ตรรกะประเมินอยู่ที่ `functions/_shared/water-eval.ts` · cooldown อยู่ที่ `functions/telegram-alert/index.ts` → `COOLDOWN_MS`)
+
+## เปลี่ยนโหมดมาตรฐานน้ำทะเล
+- **ผ่านเว็บ:** เปิด `…/admin` → ล็อกอิน (ADMIN_USER/ADMIN_PASS) → เลือกโหมดจาก dropdown
+- **ผ่าน Telegram:** พิมพ์ `/mode` (เฉพาะ chat_id ใน `TG_ADMINS`) → เลือกโหมด
+- ทั้งสองทางเขียนลง `app_settings.key='mode'` ตัวเดียวกัน → มีผลทันทีทั้งเว็บ/บอท/แจ้งเตือน

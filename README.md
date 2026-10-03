@@ -1,28 +1,31 @@
-# 🌊 ทุ่นตรวจคุณภาพน้ำทะเลแบบ Realtime (โปรเจคจบ)
+# 🌊 ทุ่นตรวจคุณภาพน้ำทะเลแบบ Realtime (ปริญญานิพนธ์)
 
-ระบบตรวจวัดคุณภาพน้ำทะเลด้วยทุ่นลอย — เซนเซอร์อ่านค่า → ESP32 + 4G ส่งขึ้น cloud → แสดงผลบน Dashboard แบบเรียลไทม์ พร้อมพิกัด GPS, AI ช่วยวิเคราะห์ และ **แจ้งเตือน/บอท Telegram ที่ทำฝั่งคลาวด์**
+ระบบตรวจวัดคุณภาพน้ำทะเลด้วยทุ่นลอย — เซนเซอร์อ่านค่า → ESP32 + 4G ส่งขึ้น cloud → ประเมินตาม **มาตรฐานน้ำทะเลไทย 6 ประเภท** → แสดงผลบน Dashboard แบบเรียลไทม์ พร้อม **Google Map**, สถานะสีรายค่า, สถานะรวม, สิทธิ์ผู้ใช้ 2 ระดับ และ **แจ้งเตือน/บอท Telegram ที่ทำฝั่งคลาวด์**
 
 ## เส้นทางข้อมูล
 ```
   🌊 ทะเล                                          🏝️ ฝั่งบก (cloud ทำงานเอง 24/7)
-  Sensor ─RS485─► ESP32 + 4G(A7670E) + GPS ─HTTPS─► Cloud DB ─realtime─► Dashboard
-   (อ่านค่า)          (อ่าน + POST เท่านั้น)          │  │
-                                                      │  └─(แถวใหม่)─► เช็คเกณฑ์ → เตือน Telegram
-                                                      └─ ผู้ใช้ /status → อ่านค่าล่าสุด → ตอบ
+  Sensor ─RS485─►[RS485-to-TTL]─►ESP32 + 4G(A7670E) + GPS ─HTTPS─► Cloud DB ─realtime─► Dashboard
+   (อ่านค่า)                        (อ่าน + POST เท่านั้น)          │  │
+                                                                    │  └─(แถวใหม่)─► ประเมินตามโหมด → เตือน Telegram
+                                                                    └─ ผู้ใช้ /status /swim /mode → อ่าน/ตั้งค่า → ตอบ
         แผนหลัก  = Supabase (PostgreSQL + Edge Functions)
         แผนสำรอง = Server อาจารย์ (PHP + MySQL)
 ```
-📊 ดูแผนผังการทำงานเต็ม: [docs/system-flowchart.html](docs/system-flowchart.html)
+📊 ดูแผนผังการทำงานเต็ม: [docs/system-flowchart.html](docs/system-flowchart.html) · 📘 สรุประบบฉบับอ้างอิง (สำหรับเล่ม): [5-extensions/06-system-documentation.md](5-extensions/06-system-documentation.md)
 
-## สถานะ (อัปเดต 2026-07-21)
+## สถานะ (อัปเดต 2026-10-03)
 | ส่วน | สถานะ |
 |------|-------|
-| อ่าน sensor จริง (RS485) เข้า ESP32 | ✅ อ่านค่าได้ครบ 8 พารามิเตอร์ |
+| อ่าน sensor จริง (RS485/Modbus) เข้า ESP32 | ✅ อ่านค่าได้ครบ **11 พารามิเตอร์ จาก 8 โพรบ** |
 | ESP32 + 4G (A7670E) → Supabase | ✅ HTTP 201 (SNI + HTTP-app ในตัวโมเด็ม) |
-| GPS (A7670E GNSS) | ✅ ได้พิกัดจริง |
-| Dashboard (8 การ์ด + AI + การ์ดตำแหน่ง) | ✅ ใช้งานได้ |
-| Telegram แจ้งเตือนวิกฤต + `/status` (ฝั่งบก) | ✅ deploy Supabase Edge Functions แล้ว |
-| ธงสถานะการลงเล่นน้ำ (Blue Flag) + `/swim` | ✅ Dashboard + Telegram + เตือนธงแดง |
+| GPS (A7670E GNSS) + Google Map ตามพิกัด | ✅ ได้พิกัดจริง / แผนที่ตามตำแหน่ง (ไม่มีพิกัด = แจ้งเตือน ไม่ hard-code) |
+| ระบบ **6 โหมดมาตรฐานน้ำทะเลไทย** (เลือกได้ มีผลต่อสี/สถานะ/แจ้งเตือน) | ✅ ใช้งานจริง (config กลาง `water-modes.json`) |
+| สถานะสีรายค่า (เขียว/ส้ม/แดง) + สถานะรวม (Model A) | ✅ ใช้งานจริง |
+| Dashboard (การ์ด 11 ค่า + สถานะทุ่น + Google Map + Export CSV) | ✅ ใช้งานได้ |
+| สิทธิ์ผู้ใช้ 2 ระดับ (user ดูค่า / admin เปลี่ยนโหมดผ่าน `/admin`) | ✅ ใช้งานจริง (Edge Function + RLS) |
+| Telegram `/status` `/swim` `/mode` (admin) + แจ้งเตือนตามโหมด | ✅ deploy Supabase Edge Functions แล้ว |
+| สถานะทุ่น online/stale/offline (liveness) + heartbeat (`sensor_ok`) | ✅ ใช้งานจริง |
 | **เหลือ:** เก็บงาน + ทดสอบภาคสนามจริง | ⏳ |
 
 ## โครงสร้างโฟลเดอร์
@@ -30,35 +33,39 @@
 |----------|---------|
 | **0-manuals/** | คู่มือ PDF (sensor / RS485 / solar) — *ไม่ commit ขึ้น git (ไฟล์ใหญ่)* |
 | **1-sensor-tools/** | เครื่องมือ Python อ่าน sensor ผ่าน RS485 (read_sensor, console, bridge) |
-| **2-dashboard/** | หน้าเว็บแสดงผล (mock/supabase/server) — *Render ใช้เป็น Publish Directory* |
-| **3-supabase-primary/** | ★ แผนหลัก ★ `schema.sql` + firmware ESP32 (4G / GPS / test) |
-| **4-server-backup/** | แผนสำรอง: PHP+MySQL API + Telegram + test sketch |
-| **5-extensions/** | ต่อยอด: AI ผู้ช่วย, แจ้งเตือน Telegram, เทรนด์, หลายทุ่น |
-| **supabase/** | ★ Telegram ฝั่งบก ★ Edge Functions (bot + alert) + schema — *ชื่อโฟลเดอร์ต้องเป็น `supabase/` (Supabase CLI บังคับ)* |
+| **2-dashboard/** | หน้าเว็บแสดงผล + `water-modes.json` — *Render ใช้เป็น Publish Directory* |
+| **3-supabase-primary/** | ★ แผนหลัก ★ `schema.sql` + firmware ESP32 (`Full-Version/Full-Version.ino`) |
+| **4-server-backup/** | แผนสำรอง: PHP+MySQL API + Telegram + 6 โหมด (`lib/water-modes.json`) |
+| **5-extensions/** | ต่อยอด + **เอกสารเล่ม** (06 ระบบ, 07 บท 3–4 + diagram, 08 บทคัดย่อ/บท 1/บท 5) |
+| **supabase/** | ★ ฝั่งบก ★ Edge Functions (telegram-bot + telegram-alert + **admin**) + schema + config กลาง `functions/_shared/water-modes.json` |
 | **docs/** | แผนผังการทำงานของระบบ (system-flowchart.html) |
 
 > 🔄 **สลับ Supabase ↔ Server?** → [SWITCHING-GUIDE.md](SWITCHING-GUIDE.md)
-> 📲 **ตั้ง Telegram (แจ้งเตือน + /status /swim)?** → [5-extensions/02-alerts-notification.md](5-extensions/02-alerts-notification.md) + [supabase/README.md](supabase/README.md)
-> 🏖️ **เกณฑ์ "ลงเล่นน้ำได้ไหม" (Blue Flag / คพ.ไทย + แหล่งอ้างอิงสำหรับเล่ม)** → [5-extensions/05-blueflag-swim-safety.md](5-extensions/05-blueflag-swim-safety.md)
+> 📲 **ตั้ง Telegram (แจ้งเตือน + /status /swim /mode)?** → [supabase/README.md](supabase/README.md)
+> 🏖️ **เกณฑ์ 6 โหมด + "ลงเล่นน้ำได้ไหม" (คพ.ไทย / Blue Flag + แหล่งอ้างอิง)** → [5-extensions/05-blueflag-swim-safety.md](5-extensions/05-blueflag-swim-safety.md)
+> 🔐 **สิทธิ์ผู้ใช้ admin/user (`/admin`)** → [5-extensions/06-system-documentation.md](5-extensions/06-system-documentation.md) ข้อ 8
 
-## ค่าที่วัด (8 พารามิเตอร์ — เฉพาะ probe ที่ sensor จริงอ่านได้)
-ออกซิเจนละลายน้ำ (DO) · ออกซิเจน %อิ่มตัว · อุณหภูมิ · ความเป็นกรด-ด่าง (pH) · ความเค็ม · การนำไฟฟ้า (Conductivity) · สารละลายรวม (TDS) · ความขุ่น
-> คลอโรฟิลล์/ORP/น้ำมัน/สาหร่าย = ยังไม่ได้ติด probe (อ่านได้ 0) จึงซ่อนไว้ — คอลัมน์ยังอยู่ใน Supabase เปิดคืนได้ทันที
+## ค่าที่วัด (11 พารามิเตอร์ จาก 8 โพรบ)
+**8 ค่าหลัก:** ออกซิเจนละลายน้ำ (DO) · ความเป็นกรด-ด่าง (pH) · ความเค็ม (Salinity) · การนำไฟฟ้า (Conductivity) · ความขุ่น (Turbidity) · คลอโรฟิลล์ (CHL) · ศักย์รีดอกซ์ (ORP) · น้ำมันในน้ำ (OIW)
+**ค่าเสริม:** สาหร่ายสีเขียวแกมน้ำเงิน (BGA) · ออกซิเจน %อิ่มตัว (DO%) · อุณหภูมิ (Temp)
+> ⚠️ **ไม่มี TDS แล้ว** — TDS เป็นค่าที่คำนวณจาก Conductivity ไม่ใช่ค่าจากโพรบจริง จึงตัดออกตามคู่มือเซนเซอร์
+> OIW (0x260D) และ BGA (0x260E) ใช้ช่องข้อมูลร่วมกันในเฟรม bulk → เฟิร์มแวร์อ่านแยก register จึงได้ครบ
 
 ## ฮาร์ดแวร์ที่ใช้
 - **ESP32:** LilyGO **T-Call-A7670 V1.0** (โมดูล A7670E — LTE Cat-1 + GNSS ในตัว)
-- **Sensor:** Online Multi-parameter Sensor (Modbus RTU, 9600 8N1) ผ่านโมดูล **TTL485-V2.0** (auto-direction)
-- **ไฟ:** แบต 12V + โซลาร์ (OLYS controller) — โมเด็มต้องการไฟแน่น (เสียบแบต LiPo)
+- **Sensor:** Online Multi-parameter Sensor (Modbus RTU, 9600 8N1) ผ่านโมดูล **RS485-to-TTL**
+- **ไฟ:** โซล่าเซลล์ → Control (OLYS charge controller) → แบต 12V → Delay → 12V (เลี้ยงเซนเซอร์) + Step-down 5V (เลี้ยง ESP32)
 - ⚠️ พิน T-Call-A7670 **V1.0** ต่างจากรุ่นทั่วไป: TX=26, **RX=25**, PWRKEY=4, **RST=27**
 
 ## เริ่มใช้งาน
 1. **ดู Dashboard:** เปิด `2-dashboard/index.html` (โหมด mock เห็นค่าขยับ realtime)
 2. **อ่าน sensor จริง:** ดู `1-sensor-tools/README.md` (รัน `read_sensor.py`)
-3. **ตั้ง Supabase:** รัน `3-supabase-primary/schema.sql` แล้วตั้ง `CONFIG.mode='supabase'` ใน dashboard
-4. **ESP32 + 4G:** อัปโหลด `3-supabase-primary/esp32-supabase-4g.ino` (ใส่ APN — DTAC = `www.dtac.co.th`, AIS = `internet`)
-5. **Telegram ฝั่งบก:** ทำตาม `supabase/README.md` (แผนหลัก) หรือ `4-server-backup/README.md` (แผนสำรอง)
+3. **ตั้ง Supabase:** รัน `3-supabase-primary/schema.sql` + `supabase/schema-settings.sql` + `supabase/schema-telegram.sql`
+4. **ESP32 + 4G:** อัปโหลด `3-supabase-primary/Full-Version/Full-Version.ino` (ใส่ APN — DTAC = `www.dtac.co.th`, AIS = `internet`)
+5. **ฝั่งบก (Telegram + admin):** ทำตาม `supabase/README.md` (แผนหลัก) หรือ `4-server-backup/README.md` (แผนสำรอง)
 
 ## หมายเหตุการเชื่อมต่อ (บทเรียนสำคัญ)
 - **A7670E ต่อ HTTPS Supabase:** ใช้ **HTTP application ในตัวโมเด็ม** (AT+HTTP...) + ตั้ง SSL ต้อง **เปิด `enableSNI`** ไม่งั้น handshake fail (error 715) เพราะ Supabase อยู่หลัง Cloudflare — *TLS socket (`TinyGsmClientSecure`) ของ A7670E ไม่เสถียร ใช้ไม่ได้*
 - **ไลบรารี TinyGSM:** ใช้ macro `TINY_GSM_MODEM_A7672X` และต้องอยู่ path อังกฤษ (`C:\Arduino`)
-- **ทุ่นเบา:** Telegram/แจ้งเตือน ไม่อยู่บน ESP32 แล้ว (ย้ายไปคลาวด์) — ทุ่นแค่อ่าน sensor แล้ว POST
+- **GND ร่วม:** ต้องต่อ common ground ที่ GND BAR ครบทุกตัว (ESP32 / RS485-to-TTL / sensor / แหล่งจ่าย) ไม่งั้นสัญญาณ RS485 เพี้ยน เซนเซอร์ไม่ตอบ
+- **ทุ่นเบา:** ตรรกะประเมิน/แจ้งเตือน/แสดงผล อยู่ฝั่งคลาวด์ทั้งหมด — ทุ่นแค่อ่าน sensor + GPS แล้ว POST (ปรับเกณฑ์/เพิ่มฟีเจอร์ได้โดยไม่ต้อง flash ทุ่นใหม่)

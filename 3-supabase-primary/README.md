@@ -16,7 +16,8 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 ## ขั้นที่ 2 — สร้างตาราง + สิทธิ์ + realtime
 1. เมนูซ้าย **SQL Editor** → New query
 2. วางเนื้อหาไฟล์ `schema.sql` ทั้งหมด → กด **Run**
-3. จะได้ตาราง `readings` + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
+3. จะได้ตาราง `readings` (ครบ 11 ค่า + `sensor_ok` heartbeat + `lat`/`lon`) + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
+> ฝั่งบก (Telegram/admin/6 โหมด) รัน `supabase/schema-telegram.sql` + `supabase/schema-settings.sql` เพิ่ม (ดู [`../supabase/README.md`](../supabase/README.md))
 
 ## ขั้นที่ 3 — เอา URL + anon key มาใส่ Dashboard
 1. เมนูซ้าย **Project Settings (เฟือง)** → **API**
@@ -38,15 +39,18 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 3. เปิด `2-dashboard/index.html` → **ค่าต้องขึ้นทันที** และถ้า insert แถวใหม่ Dashboard เปลี่ยน**สดๆ** = realtime ทำงาน ✅
 
 ## ขั้นที่ 5 — ต่อ ESP32
-มี 2 เวอร์ชัน:
 | ไฟล์ | ใช้ตอนไหน | เน็ต |
 |------|-----------|------|
-| `esp32-supabase-test.ino` | **ทดสอบบนโต๊ะ** (ก่อนได้โมดูล 4G) | WiFi |
-| `esp32-supabase-4g.ino` | **ของจริงบนทุ่น** | โมดูล 4G (LilyGO T-Call-A7670 V1.0 / A7670E) |
+| **`Full-Version/Full-Version.ino`** ⭐ | **ของจริงบนทุ่น** (อ่าน 11 ค่า + GPS + heartbeat + 4G) | โมดูล 4G (LilyGO T-Call-A7670 V1.0 / A7670E) |
+| `Backup/esp32-supabase-test.ino` | ทดสอบบนโต๊ะ (ก่อนได้โมดูล 4G) | WiFi |
+| `Backup/esp32-gps-test.ino` | ทดสอบ GPS อย่างเดียว | — |
 
-**เวอร์ชัน 4G (`esp32-supabase-4g.ino`) — ของจริงบนทุ่น:**
-- ฮาร์ดแวร์: **LilyGO T-Call-A7670 V1.0** (โมดูล A7670E — LTE Cat-1 + GNSS ในตัว)
+**เวอร์ชันของจริง (`Full-Version/Full-Version.ino`) — บนทุ่น:**
+- ฮาร์ดแวร์: **LilyGO T-Call-A7670 V1.0** (โมดูล A7670E — LTE Cat-1 + GNSS ในตัว) + เซนเซอร์ผ่าน **RS485-to-TTL**
   ⚠️ พิน V1.0 ต่างจากรุ่นทั่วไป: TX=26, **RX=25**, PWRKEY=4, **RST=27 (active LOW)**
+- อ่านค่า: เฟรม bulk `0x2600` (11 ค่า) + อ่านแยก `0x260D` (OIW) / `0x260E` (BGA) เพราะใช้ช่องข้อมูลร่วมกัน
+- **heartbeat:** อ่าน sensor ไม่สำเร็จ → ส่ง `sensor_ok=false` (แยก "sensor เสีย" ออกจาก "ทุ่น/4G หลุด")
+- โหมดทดสอบ: ตั้ง `USE_FAKE=1` เพื่อสร้างค่าปลอมครบ 12 ช่อง (ตอนใช้จริงตั้ง `USE_FAKE=0`)
 - ไลบรารี **TinyGSM** → ใช้ macro `TINY_GSM_MODEM_A7672X` (ครอบคลุม A7670E); ต้องอยู่ path อังกฤษ (`C:\Arduino`)
 - แก้: `APN` ของค่ายซิม (DTAC=`www.dtac.co.th`, AIS/True=`internet`), host + anon key ใส่ให้แล้ว
 - **HTTPS:** A7670E ต่อ TLS socket ไม่เสถียร → ใช้ **HTTP application ในตัวโมเด็ม** (AT+HTTP...) + **เปิด `enableSNI`** (ไม่งั้น error 715 เพราะ Supabase อยู่หลัง Cloudflare)
