@@ -592,10 +592,12 @@ function sensorIssues(){
   return out;
 }
 /* ---------- AI: WQI รวม + หมวด ---------- */
+const EXTRA_KEYS=['chl','orp','oil','algae'];   // ค่าเสริม: ถ้าอ่าน 0 = โพรบยังไม่ต่อ -> ไม่คิดใน WQI
 function computeWQI(){
   let sum=0, wsum=0; const parts={};
   PARAMS.forEach(p=>{
     const v = history[p.key].at(-1); if (v==null) return;
+    if(EXTRA_KEYS.includes(p.key) && v===0){ parts[p.key]=null; return; }   // โพรบหลุด/ยังไม่ต่อ -> ไม่ตัดคะแนน
     const si = subIndex(p,v); parts[p.key]=si; sum+=si*p.w; wsum+=p.w;
   });
   const wqi = wsum? Math.round(sum/wsum) : 0;
@@ -652,7 +654,7 @@ function buildInsight(wqiObj){
    ========================================================================= */
 let sbLatest = {}, sbLastTs = null;   // sbLastTs = created_at ของแถวล่าสุดที่รับมาแล้ว (กันนับซ้ำ realtime/polling)
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
-function mapRow(r){ return {do:r.do_val, do_pct:r.do_pct, temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,
+function mapRow(r){ return {do:r.do_val, do_pct:(r.do_pct!=null&&r.do_pct<=2?r.do_pct*100:r.do_pct), temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,  // do_pct บางเซนเซอร์ส่งเป็นสัดส่วน (0.90) -> แปลงเป็น % (90)
                             lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
                             sensor_ok:r.sensor_ok,                               // heartbeat: false = ESP ไลฟ์ แต่ sensor เสีย
                             chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
@@ -821,7 +823,10 @@ function drawGauge(wqi,cls){
 }
 function drawContrib(parts){
   document.getElementById('contrib').innerHTML=PARAMS.map(p=>{
-    const si=parts[p.key]??0;
+    const si=parts[p.key];
+    if(si==null)   // โพรบยังไม่ต่อ/ไม่มีข้อมูล -> แสดง "อ้างอิง" ไม่ใช่คะแนน 0
+      return `<div class="row"><span style="width:96px;color:#dcefff">${p.th}</span>
+        <div class="bar"></div><span class="pv" style="color:#6b8aa3">อ้างอิง</span></div>`;
     return `<div class="row"><span style="width:96px;color:#dcefff">${p.th}</span>
       <div class="bar"><i style="width:${si}%;background:${p.color}"></i></div>
       <span class="pv">${si}</span></div>`;}).join('');
