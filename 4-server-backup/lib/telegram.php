@@ -103,7 +103,7 @@ function wm_band_status($v, $green, $orange) {
 // สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด
 function wm_extra_status($v, $key) {
     $extra = wm_config()['extra'] ?? [];
-    if (!isset($extra[$key])) return null;
+    if (!isset($extra[$key]) || $v == 0) return null;   // 0.00 = โพรบยังไม่ต่อ -> ไม่ตัดสินสี
     return wm_band_status($v, $extra[$key]['green'], $extra[$key]['orange']);
 }
 
@@ -169,6 +169,21 @@ function wm_eval($r, $modeKey) {
             $anyOrange = true;
             $watchR[] = $META[$k]['label'] . ' ' . $text;
         }
+    }
+
+    // ค่าเสริม (chl/orp/oil/algae): เกณฑ์ทั่วไป -> ระดับ advisory (แดง/ส้ม ดันสถานะรวมเป็น "ส้ม" ไม่ถึงแดงวิกฤต)
+    $extra = $cfg['extra'] ?? [];
+    foreach ($extra as $k => $c) {
+        if (isset($crit[$k])) continue;
+        $v = $g($k);
+        if ($v === null) continue;
+        if ($v == 0) continue;              // 0.00 เป๊ะ = โพรบยังไม่ต่อ/ไม่อ่าน (ไม่ใช่ค่าจริง) -> ข้าม
+        $st = wm_band_status($v, $c['green'], $c['orange']);
+        if ($st === 'green') continue;
+        $unit = $c['unit'] ?? '';
+        $text = number_format($v, $c['dec'] ?? 1) . ($unit ? ' ' . $unit : '');
+        if ($st === 'red') { $anyRed = true; $redR[] = $c['label'] . ' ' . $text; }
+        else               { $anyOrange = true; $watchR[] = $c['label'] . ' ' . $text; }
     }
 
     if ($anyCritRed)                 { $overall = 'red';    $reasons = $redR; }

@@ -36,13 +36,14 @@ function bandStatus(v: number, green: Band, orange: Band): Status {
   return "red";
 }
 
-// ค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด แสดงสีสถานะแต่ไม่กระทบสถานะรวม
+// ค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด; แสดงสีสถานะ และมีผลต่อสถานะรวมระดับ advisory (ดันเป็น "ส้ม")
 export const EXTRA = ((modesConfig as any).extra ?? {}) as Record<
   string, { label: string; unit: string; dec: number; green: Band; orange: Band }
 >;
 export function extraStatus(v: number, key: string): Status | null {
   const c = EXTRA[key];
-  return c ? bandStatus(v, c.green, c.orange) : null;
+  if (!c || v === 0) return null;   // 0.00 = โพรบยังไม่ต่อ -> ไม่ตัดสินสี
+  return bandStatus(v, c.green, c.orange);
 }
 
 export type ParamEval = {
@@ -104,6 +105,21 @@ export function evalWater(r: Record<string, unknown>, modeKey: string): WaterEva
       anyOrange = true;
       watchReasons.push(`${meta.label} ${text}`);
     }
+  }
+
+  // ค่าเสริม (chl/orp/oil/algae): เกณฑ์ทั่วไป -> ระดับ "advisory"
+  // แดง/ส้ม ดันสถานะรวมเป็น "ส้ม" (ไม่ถึงแดงวิกฤต) เพื่อไม่ให้ขึ้นเขียวทั้งที่น้ำมีปัญหา เช่น สาหร่ายบลูม/คราบน้ำมัน
+  for (const k of Object.keys(EXTRA)) {
+    if (k in crit) continue;
+    const v = num((r as any)[k]);
+    if (isNaN(v)) continue;
+    if (v === 0) continue;                 // 0.00 เป๊ะ = โพรบยังไม่ต่อ/ไม่อ่าน (ไม่ใช่ค่าจริง) -> ข้าม
+    const c = EXTRA[k];
+    const st = bandStatus(v, c.green, c.orange);
+    if (st === "green") continue;
+    const text = `${v.toFixed(c.dec ?? 1)}${c.unit ? " " + c.unit : ""}`;
+    if (st === "red") { anyRed = true; redReasons.push(`${c.label} ${text}`); }
+    else { anyOrange = true; watchReasons.push(`${c.label} ${text}`); }
   }
 
   let overall: Status;

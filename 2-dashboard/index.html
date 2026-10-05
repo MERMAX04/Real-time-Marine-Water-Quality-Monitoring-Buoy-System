@@ -356,7 +356,7 @@
       <div class="contrib" id="contrib"></div>
     </div>
     <div class="glass panel">
-      <h2>🔮 พยากรณ์ &amp; แจ้งเตือน (AI)</h2>
+      <h2>🔮 พยากรณ์ &amp; แจ้งเตือน</h2>
       <div class="sub">วิเคราะห์แนวโน้ม/ความผิดปกติแบบเรียลไทม์ — เก็บ<b style="color:var(--accent2)">ประวัติการแจ้งเตือนไว้ ของเก่าไม่หาย</b></div>
       <div class="feed" id="feed"></div>
     </div>
@@ -599,11 +599,30 @@ function computeWQI(){
     const si = subIndex(p,v); parts[p.key]=si; sum+=si*p.w; wsum+=p.w;
   });
   const wqi = wsum? Math.round(sum/wsum) : 0;
-  let cat,cls;
-  if (wqi>=80){cat='ดีเยี่ยม';cls='good'} else if(wqi>=60){cat='ดี';cls='good'}
-  else if(wqi>=40){cat='ปานกลาง';cls='warning'} else if(wqi>=20){cat='แย่';cls='serious'}
-  else {cat='วิกฤต';cls='critical'}
+  const {cat,cls}=wqiCat(wqi);
   return {wqi,cat,cls,parts};
+}
+/* แบ่งหมวด/สีจากคะแนน WQI */
+function wqiCat(wqi){
+  if(wqi>=80)return{cat:'ดีเยี่ยม',cls:'good'};
+  if(wqi>=60)return{cat:'ดี',cls:'good'};
+  if(wqi>=40)return{cat:'ปานกลาง',cls:'warning'};
+  if(wqi>=20)return{cat:'แย่',cls:'serious'};
+  return{cat:'วิกฤต',cls:'critical'};
+}
+/* จำกัดเพดาน WQI ให้สอดคล้องกับสถานะรวมตามมาตรฐานโหมด
+   (กันกรณีค่าเฉลี่ยกลบค่าที่อันตราย -> ดัชนีไม่ขึ้น "ดี" ทั้งที่น้ำตกเกณฑ์) */
+function reconcileWQI(wqiObj){
+  if(!MODE_CFG) return;
+  const d={}; PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) d[p.key]=a.at(-1); });
+  const s=evalWaterJS(d);
+  let ceil=100;
+  if(s.overall==='red') ceil=39;         // อันตราย -> ไม่เกิน "แย่"
+  else if(s.overall==='orange') ceil=59; // เฝ้าระวัง -> ไม่เกิน "ปานกลาง"
+  if(wqiObj.wqi>ceil){
+    wqiObj.wqi=ceil;
+    const r=wqiCat(ceil); wqiObj.cat=r.cat; wqiObj.cls=r.cls; wqiObj.capped=s.overall;
+  }
 }
 
 /* ---------- AI: สร้างประโยคสรุปภาษาไทย ---------- */
@@ -986,6 +1005,18 @@ function evalWaterJS(d){
     if(st==='red'){ anyRed=true; if(c.tier==='critical')anyCritRed=true; redR.push(`${META[ck].label} ${text}`); }
     else if(st==='orange'){ anyOrange=true; watchR.push(`${META[ck].label} ${text}`); }
   }
+  // ค่าเสริม (chl/orp/oil/algae): เกณฑ์ทั่วไป -> ระดับ advisory (แดง/ส้ม ดันสถานะรวมเป็น "ส้ม" ไม่ถึงแดงวิกฤต)
+  const EX=MODE_CFG.extra||{};
+  for(const k of Object.keys(EX)){
+    if(crit[k])continue;
+    const v=d[k]; if(v==null||isNaN(v))continue;
+    if(v===0)continue;                        // 0.00 เป๊ะ = โพรบยังไม่ต่อ/ไม่อ่าน (ไม่ใช่ค่าจริง) -> ข้าม
+    const c=EX[k], st=bandStatusJS(v,c.green,c.orange);
+    if(st==='green')continue;
+    const text=`${(+v).toFixed(c.dec??1)}${c.unit?' '+c.unit:''}`;
+    if(st==='red'){ anyRed=true; redR.push(`${c.label} ${text}`); }
+    else{ anyOrange=true; watchR.push(`${c.label} ${text}`); }
+  }
   let overall,reasons;
   if(anyCritRed){overall='red';reasons=redR;}
   else if(anyRed||anyOrange){overall='orange';reasons=redR.concat(watchR);}
@@ -1032,6 +1063,7 @@ async function tick(){
   });
   renderSwim();                       // ธงสถานะการลงเล่นน้ำ (Blue Flag)
   const wqiObj=computeWQI();
+  reconcileWQI(wqiObj);               // จำกัดเพดานดัชนีตามสถานะรวมของโหมด (กันดัชนีขัดแย้งกับการแจ้งเตือน)
   drawGauge(wqiObj.wqi,wqiObj.cls);
   document.getElementById('wqi-num').textContent=wqiObj.wqi;
   document.getElementById('wqi-mini').textContent=wqiObj.wqi;
@@ -1053,7 +1085,7 @@ function firstEmoji(s){ const m=[...(s||'')]; return m.length?m[0]:'🌊'; }
 
 /* สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไปจาก MODE_CFG.extra */
 function extraStatusJS(k,v){
-  if(!MODE_CFG||!MODE_CFG.extra||v==null||isNaN(v)) return null;
+  if(!MODE_CFG||!MODE_CFG.extra||v==null||isNaN(v)||v===0) return null;   // 0.00 = โพรบยังไม่ต่อ -> ไม่ตัดสินสี
   const c=MODE_CFG.extra[k]; if(!c) return null;
   return bandStatusJS(v,c.green,c.orange);
 }
