@@ -64,7 +64,7 @@ PRESETS = {
     "oil":   (0x260D, 2,  "OIW น้ำมัน (ppm)"),
     "algae": (0x260E, 2,  "BGA สาหร่าย (cells/mL)"),
     "tds":   (0x260F, 2,  "TDS"),
-    "status":(0x0800, 1,  "Sensor status (probe flags)"),
+    "status":(0x0800, 2,  "Sensor status (4 ไบต์: error/power/probe flags — ใช้ probe_check.py ถอดความหมาย)"),
     "ver":   (0x0700, 2,  "เวอร์ชัน hw/sw"),
 }
 
