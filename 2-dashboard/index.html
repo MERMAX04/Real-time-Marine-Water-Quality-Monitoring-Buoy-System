@@ -324,7 +324,7 @@
 
   <!-- AI Insight Bar -->
   <div class="glass ai-bar">
-    <div class="ai-badge"><span class="spark">🤖</span><span>AI วิเคราะห์</span></div>
+    <div class="ai-badge"><span class="spark">🤖</span><span>วิเคราะห์</span></div>
     <div class="ai-text" id="ai-text">กำลังประมวลผล…</div>
     <div class="wqi-chip"><span class="num" id="wqi-mini">--</span><span class="lbl">WQI</span></div>
   </div>
@@ -398,7 +398,7 @@
 
   <footer>
     โปรเจคจบ · แหล่งข้อมูล: <b>Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
-    AI Engine ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
+    ระบบวิเคราะห์ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
 </div>
 
@@ -846,7 +846,7 @@ function updateAlerts(){
   // เพิ่งเกิด (ยังไม่เคย active) -> บันทึกลงล็อก
   now.forEach((v,k)=>{ if(!activeInfo.has(k)) pushAlert(v.cls, v.icon, v.text, v.meta); });
   // เพิ่งหาย -> บันทึกว่ากลับปกติ
-  activeInfo.forEach((v,k)=>{ if(!now.has(k)) pushAlert('good','✅',`<b>${v.label}</b> กลับสู่ภาวะปกติแล้ว`,'AI เฝ้าระวังต่อ'); });
+  activeInfo.forEach((v,k)=>{ if(!now.has(k)) pushAlert('good','✅',`<b>${v.label}</b> กลับสู่ภาวะปกติแล้ว`,'ระบบเฝ้าระวังต่อ'); });
   activeInfo = new Map([...now].map(([k,v])=>[k,{label:v.label}]));
 }
 
@@ -854,7 +854,7 @@ function renderFeed(){
   const feed = document.getElementById('feed');
   if (!alertLog.length){
     feed.innerHTML = `<div class="fitem good"><span class="fi">✅</span><div>
-      <div class="ft">ยังไม่มีการแจ้งเตือน — AI เฝ้าระวังอยู่</div>
+      <div class="ft">ยังไม่มีการแจ้งเตือน — ระบบเฝ้าระวังอยู่</div>
       <div class="fm">เมื่อพบความผิดปกติจะบันทึกไว้ที่นี่ (ของเก่าไม่หาย)</div></div></div>`;
     return;
   }
