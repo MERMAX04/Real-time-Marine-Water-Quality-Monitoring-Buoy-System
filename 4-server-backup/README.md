@@ -19,7 +19,7 @@ ESP32 --POST--> save.php --> MySQL --> latest.php/history.php --> Dashboard
 
 ## ทดสอบ (พิมพ์ใน browser)
 ```
-https://server.ac.th/buoy/api/save.php?key=buoy-secret-2026&do=6.2&sal=32&turb=8&chl=3&orp=280&oil=5&algae=2
+https://server.ac.th/buoy/api/save.php?key=buoy-secret-2026&do=6.2&sal=32&turb=8&ph=8.1&cond=50
 ```
 ได้ `{"ok":true,"id":1}` = สำเร็จ
 

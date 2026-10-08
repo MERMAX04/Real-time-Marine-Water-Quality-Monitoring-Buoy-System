@@ -17,7 +17,8 @@
 ## 📚 เอกสารสำหรับเล่มปริญญานิพนธ์
 | ไฟล์ | เนื้อหา |
 |------|---------|
-| [`06-system-documentation.md`](06-system-documentation.md) | สรุประบบฉบับอ้างอิง (11 หัวข้อ: สถาปัตยกรรม/ฮาร์ดแวร์/firmware/DB/6 โหมด/เว็บ/Telegram/roles/ตาราง 11 ค่า/เทคสแตก/อ้างอิง) |
+| [`06-system-documentation.md`](06-system-documentation.md) | สรุประบบฉบับอ้างอิง (11 หัวข้อ: สถาปัตยกรรม/ฮาร์ดแวร์/firmware/DB/6 โหมด/เว็บ/Telegram/roles/ตาราง 7 ค่า/เทคสแตก/อ้างอิง) |
+| [`09-probe-plan-A-B.md`](09-probe-plan-A-B.md) | แผนจัดการโพรบเสริม ORP/CHL/OIW/BGA (B = ตรวจ register, A = ตัดออก — **ดำเนินการแผน A แล้ว**) |
 | [`07-thesis-chapters.md`](07-thesis-chapters.md) | **บทที่ 3** (ออกแบบ + diagram + wiring + flowchart) และ **บทที่ 4** (ทดสอบ 23 เคส + ตารางเทียบระบบเดิม) |
 | [`08-thesis-intro-conclusion.md`](08-thesis-intro-conclusion.md) | **บทคัดย่อ (ไทย/อังกฤษ)** + **บทที่ 1 บทนำ** + **บทที่ 5 สรุป/ข้อเสนอแนะ** |
 
