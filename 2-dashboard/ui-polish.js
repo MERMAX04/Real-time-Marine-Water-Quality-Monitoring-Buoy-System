@@ -76,9 +76,9 @@
 
 // Reorder existing elements only; their IDs and data handlers stay intact.
 (() => {
-  const ai = document.querySelector('.ai-bar');
+  const insight = document.querySelector('.insight-bar');
   const status = document.getElementById('swim-bar');
-  ai.before(status);
+  insight.before(status);
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   document.querySelectorAll('#cards .value').forEach(value => {
     value.parentElement.classList.add('measurement');

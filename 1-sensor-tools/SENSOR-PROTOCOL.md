@@ -1,7 +1,7 @@
 # 📋 สรุป Protocol ของ Sensor (จากคู่มือ Online Multi-parameter Sensor)
 
 สรุปเฉพาะส่วนที่ระบบใช้งานจริง — เซนเซอร์ชุดนี้ติดตั้ง **4 หัววัด** ให้ **7 ค่า**
-(คู่มือฉบับเต็มเป็น PDF สแกนอยู่ใน `0-manuals/`)
+(อ้างอิงคู่มือ Online Multi-parameter Sensor User Manual ของผู้ผลิต — ไฟล์ PDF ไม่รวมในชุดซอร์สโค้ด)
 
 ---
 

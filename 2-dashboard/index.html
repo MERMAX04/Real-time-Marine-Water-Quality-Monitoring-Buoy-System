@@ -113,15 +113,15 @@
     border:1px solid var(--glass-brd);border-radius:20px;
     box-shadow:0 16px 48px rgba(0,4,12,.55), 0 0 0 1px rgba(255,255,255,.03), inset 0 1px 0 rgba(255,255,255,.09)}
 
-  /* ---------- AI Insight Bar ---------- */
-  .ai-bar{padding:18px 22px;margin-bottom:22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
-  .ai-bar::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  /* ---------- Insight Bar (สรุปผลการวิเคราะห์) ---------- */
+  .insight-bar{padding:18px 22px;margin-bottom:22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;position:relative;overflow:hidden}
+  .insight-bar::after{content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
     background:linear-gradient(90deg,transparent,rgba(90,255,214,.10),transparent);animation:shimmer 5s infinite}
   @keyframes shimmer{0%{left:-60%}60%,100%{left:130%}}
-  .ai-badge{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;white-space:nowrap}
-  .ai-badge .spark{font-size:22px;animation:bob 3s ease-in-out infinite}
-  .ai-text{flex:1;min-width:240px;font-size:14.5px;line-height:1.55;color:#dcefff}
-  .ai-text b{color:var(--accent2)}
+  .insight-badge{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;white-space:nowrap}
+  .insight-badge .spark{font-size:22px;animation:bob 3s ease-in-out infinite}
+  .insight-text{flex:1;min-width:240px;font-size:14.5px;line-height:1.55;color:#dcefff}
+  .insight-text b{color:var(--accent2)}
   .wqi-chip{display:flex;flex-direction:column;align-items:center;min-width:92px}
   .wqi-chip .num{font-size:30px;font-weight:800;line-height:1}
   .wqi-chip .lbl{font-size:11px;color:var(--muted);margin-top:3px}
@@ -243,8 +243,8 @@
     .brand p{font-size:11px}
     .status-bar{gap:8px}
     .pill{padding:7px 11px;font-size:12px}
-    .ai-bar{padding:14px 16px;gap:12px}
-    .ai-text{font-size:13.5px}
+    .insight-bar{padding:14px 16px;gap:12px}
+    .insight-text{font-size:13.5px}
     .wqi-chip{min-width:70px}.wqi-chip .num{font-size:26px}
     .card{flex-basis:100%;max-width:none}
     .card .value{font-size:30px}
@@ -322,10 +322,10 @@
     <select id="mode-select" class="mode-select" aria-label="เลือกโหมดมาตรฐาน"></select>
   </div>
 
-  <!-- AI Insight Bar -->
-  <div class="glass ai-bar">
-    <div class="ai-badge"><span class="spark">🤖</span><span>วิเคราะห์</span></div>
-    <div class="ai-text" id="ai-text">กำลังประมวลผล…</div>
+  <!-- Insight Bar: สรุปผลการวิเคราะห์ -->
+  <div class="glass insight-bar">
+    <div class="insight-badge"><span class="spark">🔎</span><span>วิเคราะห์</span></div>
+    <div class="insight-text" id="insight-text">กำลังประมวลผล…</div>
     <div class="wqi-chip"><span class="num" id="wqi-mini">--</span><span class="lbl">WQI</span></div>
   </div>
 
@@ -342,7 +342,7 @@
   <!-- การ์ดค่า 7 ตัว -->
   <div class="grid" id="cards"></div>
 
-  <!-- AI Analysis: WQI + พยากรณ์/แจ้งเตือน -->
+  <!-- ส่วนวิเคราะห์: WQI + พยากรณ์/แจ้งเตือน -->
   <div class="analysis">
     <div class="glass panel">
       <h2>💧 ดัชนีคุณภาพน้ำ (WQI)</h2>
@@ -424,7 +424,7 @@
    ดูวิธีสลับละเอียดที่ SWITCHING-GUIDE.md
    ========================================================================= */
 const CONFIG = {
-  mode: 'supabase',      // 'mock' = เดโม (ข้อมูลขยับ+AI) | 'supabase' = ข้อมูลจริง (ต่อ Supabase แล้ว)
+  mode: 'supabase',      // 'mock' = เดโม (ข้อมูลขยับ+การวิเคราะห์) | 'supabase' = ข้อมูลจริง (ต่อ Supabase แล้ว)
   device: 'buoy-01',
   // ---- โหมด 'supabase' (แผนหลัก) : เอาค่าจาก Supabase > Project Settings > API ----
   supabase: {
@@ -470,7 +470,7 @@ PARAMS.forEach(p => history[p.key] = []);
 let activeTab = PARAMS[0].key, rangeN = 60, showTable = false;
 const displayVal = {};   // ค่าที่กำลังแสดง (ไว้ทำอนิเมชันนับ)
 
-/* ---------- AI: คะแนนย่อยรายพารามิเตอร์ (0–100) + สถานะ ---------- */
+/* ---------- วิเคราะห์: คะแนนย่อยรายพารามิเตอร์ (0–100) + สถานะ ---------- */
 function subIndex(p, v){
   const [lo,hi] = p.ideal, [mn,mx] = p.range;
   if (v >= lo && v <= hi) return 100;
@@ -486,7 +486,7 @@ function statusOf(si){
   return             {cls:'critical', txt:'วิกฤต',      icon:'✕'};
 }
 
-/* ---------- AI: พยากรณ์แนวโน้ม (Holt's double exponential smoothing + ความเชื่อมั่น) ---------- */
+/* ---------- วิเคราะห์: พยากรณ์แนวโน้ม (Holt's double exponential smoothing + ความเชื่อมั่น) ---------- */
 function forecast(key){
   const d = history[key]; const n = Math.min(d.length, 24);
   if (n < 6) return null;
@@ -517,7 +517,7 @@ function timeToRisk(p){
   if (steps <= 0 || steps > 40) return null;
   return { mins: Math.round(steps * SAMPLE_MIN), target, dir: f.slope>0?'สูงเกิน':'ต่ำกว่า' };
 }
-/* ---------- AI: z-score ตรวจความผิดปกติ ---------- */
+/* ---------- วิเคราะห์: z-score ตรวจความผิดปกติ ---------- */
 function anomaly(key){
   const d = history[key]; if (d.length < 12) return null;
   const w = d.slice(-12, -1);
@@ -527,7 +527,7 @@ function anomaly(key){
   return Math.abs(z) >= 2.2 ? z : null;
 }
 
-/* ---------- AI: แปลผลหลายค่าพร้อมกันเป็น "เหตุการณ์" ---------- */
+/* ---------- วิเคราะห์: แปลผลหลายค่าพร้อมกันเป็น "เหตุการณ์" ---------- */
 function detectEvents(){
   const P={}; PARAMS.forEach(p=>P[p.key]=p);
   const has=k=>history[k] && history[k].length>0;   // null-safe: ค่าที่ซ่อน (ไม่มีใน PARAMS) จะ = ไม่มีข้อมูล
@@ -548,7 +548,7 @@ function detectEvents(){
   return ev;
 }
 
-/* ---------- AI: ตรวจสุขภาพ sensor / คุณภาพข้อมูล (แยก "probe เสีย" ออกจาก "น้ำเปลี่ยนจริง") ---------- */
+/* ---------- วิเคราะห์: ตรวจสุขภาพ sensor / คุณภาพข้อมูล (แยก "probe เสีย" ออกจาก "น้ำเปลี่ยนจริง") ---------- */
 function sensorIssues(){
   const out=[];
   PARAMS.forEach(p=>{
@@ -573,7 +573,7 @@ function sensorIssues(){
   });
   return out;
 }
-/* ---------- AI: WQI รวม + หมวด ---------- */
+/* ---------- วิเคราะห์: WQI รวม + หมวด ---------- */
 function computeWQI(){
   let sum=0, wsum=0; const parts={};
   PARAMS.forEach(p=>{
@@ -608,7 +608,7 @@ function reconcileWQI(wqiObj){
   }
 }
 
-/* ---------- AI: สร้างประโยคสรุปภาษาไทย ---------- */
+/* ---------- วิเคราะห์: สร้างประโยคสรุปภาษาไทย ---------- */
 function buildInsight(wqiObj){
   if(wqiObj.unknown)
     return `ยัง<b>ประเมินไม่ได้</b> — ค่าความเค็มต่ำผิดปกติ (ทุ่นอาจไม่ได้อยู่ในน้ำทะเล หรือเซนเซอร์อ่านไม่ได้/เฟรมข้อมูลเสีย) ตรวจการต่อเซนเซอร์และการจ่ายไฟของทุ่น`;
@@ -688,7 +688,7 @@ function initSource(){
     }, 15000);
   }
 }
-/* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ AI มีอะไรให้วิเคราะห์ตอนเดโม */
+/* mock: เดินสุ่มต่อเนื่อง + สุ่มเหตุการณ์ผิดปกติ เพื่อให้ส่วนวิเคราะห์มีเหตุการณ์ให้ตรวจตอนเดโม */
 const mockState = {};
 PARAMS.forEach(p=>mockState[p.key]={v:(p.ideal[0]+p.ideal[1])/2, drift:0, driftT:0, frozen:0});
 async function fetchData(){
@@ -703,7 +703,7 @@ async function fetchData(){
   lastDataAt=Date.now();   // mock: สดเสมอ
   PARAMS.forEach(p=>{
     const st=mockState[p.key], sp=(p.range[1]-p.range[0]);
-    // --- glitch จำลอง (นานๆ ครั้ง) เพื่อให้ AI ตรวจสุขภาพ sensor มีของให้จับตอนเดโม ---
+    // --- glitch จำลอง (นานๆ ครั้ง) เพื่อให้การตรวจสุขภาพ sensor มีของให้จับตอนเดโม ---
     if(st.frozen>0){ st.frozen--; o[p.key]=st.v; return; }              // ค่านิ่งค้าง (flatline)
     if(Math.random()<0.0007){ st.frozen=8; o[p.key]=st.v; return; }     // เริ่ม flatline
     if(Math.random()<0.0006){ o[p.key]=p.range[1]+sp*0.15; return; }    // spike เกินช่วง (1 รอบ)
@@ -1015,7 +1015,7 @@ function renderSwim(){
 async function tick(){
   const data=await fetchData();
   // โหมดจริง (supabase/server/...) เก็บ history เฉพาะเมื่อมี "ข้อมูลใหม่" เท่านั้น
-  // (กัน AI เข้าใจผิดว่า probe ค้าง จากการ poll ค่าเดิมซ้ำ) — mock อัปเดตทุกรอบเสมอ
+  // (กันระบบวิเคราะห์เข้าใจผิดว่า probe ค้าง จากการ poll ค่าเดิมซ้ำ) — mock อัปเดตทุกรอบเสมอ
   const isReal = CONFIG.mode !== 'mock';
   if (isReal && (lastDataAt == null || lastDataAt === lastPushAt)){ updateStatus(); return; }
   lastPushAt = lastDataAt;
@@ -1046,7 +1046,7 @@ async function tick(){
   document.getElementById('wqi-mini').style.color=STATUS_HEX[wqiObj.cls];
   const catEl=document.getElementById('wqi-cat'); catEl.textContent=wqiObj.cat; catEl.style.color=STATUS_HEX[wqiObj.cls];
   drawContrib(wqiObj.parts);
-  document.getElementById('ai-text').innerHTML=buildInsight(wqiObj);
+  document.getElementById('insight-text').innerHTML=buildInsight(wqiObj);
   updateAlerts(); renderFeed();
   drawChart(); renderTable();
   updateStatus();

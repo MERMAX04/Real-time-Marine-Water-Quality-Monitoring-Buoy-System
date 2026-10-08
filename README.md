@@ -46,7 +46,6 @@
 ## โครงสร้างโฟลเดอร์
 | โฟลเดอร์ | คืออะไร |
 |----------|---------|
-| [`0-manuals/`](0-manuals/) | คู่มือ PDF (เซนเซอร์ / RS485 / solar charge controller) |
 | [`1-sensor-tools/`](1-sensor-tools/) | เครื่องมือ Python อ่านเซนเซอร์ผ่าน USB-RS485 + สรุป protocol |
 | [`2-dashboard/`](2-dashboard/) | เว็บแดชบอร์ด (HTML/CSS/JS) — Render ใช้เป็น Publish Directory |
 | [`3-supabase-primary/`](3-supabase-primary/) | ★ แผนหลัก: `schema.sql` + firmware ทุ่น `Full-Version/Full-Version.ino` |

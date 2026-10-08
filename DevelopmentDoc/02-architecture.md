@@ -61,7 +61,6 @@ BOUY PROJECT/
 ├── README.md                    หน้าแรก: ภาพรวม · ติดตั้ง · ตัวอย่างใช้งาน
 ├── SWITCHING-GUIDE.md           วิธีสลับ Supabase ↔ Server PHP
 ├── DevelopmentDoc/              เอกสารนักพัฒนา (ชุดนี้)
-├── 0-manuals/                   คู่มือ PDF ของเซนเซอร์ / RS485 / charge controller
 ├── 1-sensor-tools/              เครื่องมือ Python อ่านเซนเซอร์ผ่าน USB-RS485
 │   ├── read_sensor.py           อ่าน 7 ค่า + debug ทีละขั้น
 │   ├── rs485_console.py         คอนโซลส่งคำสั่ง Modbus เอง

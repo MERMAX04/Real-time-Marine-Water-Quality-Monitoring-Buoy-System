@@ -70,17 +70,17 @@ header #fresh { font-variant-numeric: tabular-nums; }
 /* Keep the marine scenery quieter than the measurements. */
 .fish { opacity: .48; }
 
-/* Status leads; supporting AI explanation follows without a moving shimmer. */
+/* Status leads; supporting insight text follows without a moving shimmer. */
 .swim-bar { padding: 18px 20px; margin-bottom: 12px; }
 .swim-body { min-width: 0; }
 .swim-label { font-size: 17px; line-height: 1.65; }
 .swim-reasons { line-height: 1.8; }
 .swim-note { line-height: 1.7; color: #adc4d6; }
-.ai-bar { padding: 14px 20px; gap: 16px; box-shadow: 0 8px 24px rgba(0,4,12,.2); }
-.ai-bar::after { display: none; }
-.ai-badge { font-size: 13px; color: #aec9dc; }
-.ai-badge .spark { width: auto; height: auto; margin-top: 0; font-size: 20px; animation: none; }
-.ai-text { min-width: 0; font-size: 13px; line-height: 1.8; }
+.insight-bar { padding: 14px 20px; gap: 16px; box-shadow: 0 8px 24px rgba(0,4,12,.2); }
+.insight-bar::after { display: none; }
+.insight-badge { font-size: 13px; color: #aec9dc; }
+.insight-badge .spark { width: auto; height: auto; margin-top: 0; font-size: 20px; animation: none; }
+.insight-text { min-width: 0; font-size: 13px; line-height: 1.8; }
 .wqi-chip { padding-left: 16px; border-left: 1px solid var(--glass-brd); min-width: 76px; }
 .wqi-chip .num { font-size: 26px; }
 
@@ -103,8 +103,8 @@ header #fresh { font-variant-numeric: tabular-nums; }
   .swim-bar { gap: 12px; padding: 16px; align-items: flex-start; }
   .swim-label { font-size: 15px; }
   .swim-flag { font-size: 28px; }
-  .ai-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 16px; }
-  .ai-text { grid-column: 1 / -1; grid-row: 2; }
+  .insight-bar { display: grid; grid-template-columns: 1fr auto; gap: 10px; padding: 16px; }
+  .insight-text { grid-column: 1 / -1; grid-row: 2; }
   .wqi-chip { grid-column: 2; grid-row: 1; }
   #cards { gap: 10px; }
   #cards .card { padding: 14px 12px; }
