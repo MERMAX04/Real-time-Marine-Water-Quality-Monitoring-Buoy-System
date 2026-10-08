@@ -16,7 +16,7 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 ## ขั้นที่ 2 — สร้างตาราง + สิทธิ์ + realtime
 1. เมนูซ้าย **SQL Editor** → New query
 2. วางเนื้อหาไฟล์ `schema.sql` ทั้งหมด → กด **Run**
-3. จะได้ตาราง `readings` (ค่าน้ำ 7 ค่า + TDS + `sensor_ok` heartbeat + `lat`/`lon`) + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
+3. จะได้ตาราง `readings` (ค่าน้ำ 7 ค่า + `sensor_ok` heartbeat + `lat`/`lon`) + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
 > ฝั่งบก (Telegram/admin/6 โหมด) รัน `supabase/schema-telegram.sql` + `supabase/schema-settings.sql` เพิ่ม (ดู [`../supabase/README.md`](../supabase/README.md))
 
 ## ขั้นที่ 3 — เอา URL + anon key มาใส่ Dashboard
@@ -51,7 +51,7 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 - อ่านค่า: เฟรม bulk `0x2600` ครั้งเดียว ใช้ DO, ความขุ่น, EC, pH, อุณหภูมิ, ความเค็ม, DO% (ช่อง ORP/CHL/OIW-BGA ไม่ใช้ เพราะไม่ได้ติดโพรบ)
 - ถ้าเฟรมผ่านแต่ pH/DO/EC เป็น 0 ทั้งหมด (sensor ยังไม่พร้อม) = ถือว่าอ่านไม่สำเร็จ ส่ง heartbeat แทน
 - **heartbeat:** อ่าน sensor ไม่สำเร็จ → ส่ง `sensor_ok=false` (แยก "sensor เสีย" ออกจาก "ทุ่น/4G หลุด")
-- โหมดทดสอบ: ตั้ง `USE_FAKE=1` เพื่อสร้างค่าปลอมครบ 7 ค่า (+TDS) (ตอนใช้จริงตั้ง `USE_FAKE=0`)
+- โหมดทดสอบ: ตั้ง `USE_FAKE=1` เพื่อสร้างค่าปลอมครบ 7 ค่า (ตอนใช้จริงตั้ง `USE_FAKE=0`)
 - ไลบรารี **TinyGSM** → ใช้ macro `TINY_GSM_MODEM_A7672X` (ครอบคลุม A7670E); ต้องอยู่ path อังกฤษ (`C:\Arduino`)
 - แก้: `APN` ของค่ายซิม (DTAC=`www.dtac.co.th`, AIS/True=`internet`), host + anon key ใส่ให้แล้ว
 - **HTTPS:** A7670E ต่อ TLS socket ไม่เสถียร → ใช้ **HTTP application ในตัวโมเด็ม** (AT+HTTP...) + **เปิด `enableSNI`** (ไม่งั้น error 715 เพราะ Supabase อยู่หลัง Cloudflare)

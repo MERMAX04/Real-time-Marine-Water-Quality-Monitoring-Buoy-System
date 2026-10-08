@@ -18,14 +18,10 @@ CREATE TABLE IF NOT EXISTS readings (
     ph        FLOAT  NULL,   -- ความเป็นกรด-ด่าง
     sal       FLOAT  NULL,   -- ความเค็ม (ppt)
     `cond`    FLOAT  NULL,   -- การนำไฟฟ้า (mS/cm)  (backtick กันชนคำสงวน)
-    tds       FLOAT  NULL,   -- สารละลายรวม
     turb      FLOAT  NULL,   -- ความขุ่น (NTU)
     sensor_ok TINYINT(1) NOT NULL DEFAULT 1,   -- heartbeat: 0 = ESP ยังไลฟ์ แต่ sensor อ่านไม่ได้
-    chl       FLOAT  NULL,   -- คลอโรฟิลล์ (µg/L)
-    orp       FLOAT  NULL,   -- ศักย์ออกซิเดชัน (mV)
-    oil       FLOAT  NULL,   -- น้ำมัน
-    algae     FLOAT  NULL,   -- สาหร่ายสีเขียว
-    lat       DOUBLE NULL,   -- พิกัด GPS
+    -- ไม่มี TDS (คำนวณจาก EC) และ ORP/CHL/OIW/BGA (ไม่ได้ติดหัววัด) — ตรงกับฝั่ง Supabase
+    lat      DOUBLE NULL,   -- พิกัด GPS
     lon       DOUBLE NULL,
 
     INDEX idx_ts (ts),

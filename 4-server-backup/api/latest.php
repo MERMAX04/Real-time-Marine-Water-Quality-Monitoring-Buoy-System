@@ -2,7 +2,7 @@
 /* =========================================================================
    latest.php  —  ส่งค่าล่าสุด 1 ชุด ให้ Dashboard (โหมด CONFIG.mode='server')
    เรียก:  latest.php   หรือ   latest.php?device=buoy-01
-   ตอบ key ให้ตรงกับ PARAMS ของ dashboard: do, do_pct, temp, ph, sal, cond, tds, turb ...
+   ตอบ key ให้ตรงกับ PARAMS ของ dashboard: do, do_pct, temp, ph, sal, cond, turb ...
    ========================================================================= */
 require __DIR__ . '/../config.php';
 
@@ -21,7 +21,6 @@ try {
         'ph'     => $f($row['ph']),
         'sal'    => $f($row['sal']),
         'cond'   => $f($row['cond']),
-        'tds'    => $f($row['tds']),
         'turb'   => $f($row['turb']),
         'lat'    => $f($row['lat']),
         'lon'    => $f($row['lon']),

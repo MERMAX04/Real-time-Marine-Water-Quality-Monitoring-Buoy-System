@@ -14,12 +14,12 @@ create table if not exists public.readings (
   ph         real,   -- ความเป็นกรด-ด่าง (pH)
   sal        real,   -- ความเค็ม (ppt)
   cond       real,   -- การนำไฟฟ้า (mS/cm)
-  tds        real,   -- สารละลายรวม (mg/L)
   turb       real,   -- ความขุ่น (NTU)
   sensor_ok  boolean not null default true,   -- heartbeat: false = ESP ยังไลฟ์ แต่ sensor อ่านไม่ได้
   lat        double precision,   -- พิกัด GPS ละติจูด (องศาทศนิยม)
   lon        double precision    -- พิกัด GPS ลองจิจูด (องศาทศนิยม)
   -- ORP / คลอโรฟิลล์ / น้ำมัน / สาหร่าย: ไม่ได้ติดตั้งหัววัด จึงไม่มีคอลัมน์ (ลบออกแล้ว 2026-10-08)
+  -- TDS: เซนเซอร์คำนวณจาก EC (EC µS/cm × 0.64) ไม่ใช่ค่าวัด จึงไม่เก็บ (ลบออกแล้ว)
   -- ถ้าติดหัววัดเพิ่มภายหลัง: alter table public.readings add column chl real, add column orp real, ...
 );
 
@@ -28,7 +28,6 @@ alter table public.readings add column if not exists ph     real;
 alter table public.readings add column if not exists do_pct real;
 alter table public.readings add column if not exists temp   real;
 alter table public.readings add column if not exists cond   real;
-alter table public.readings add column if not exists tds    real;
 alter table public.readings add column if not exists lat    double precision;
 alter table public.readings add column if not exists lon    double precision;
 alter table public.readings add column if not exists sensor_ok boolean not null default true;
@@ -56,7 +55,7 @@ create or replace view public.readings_daily as
 select device,
        date_trunc('day', created_at) as day,
        avg(do_val) do_avg, avg(do_pct) do_pct_avg, avg(temp) temp_avg, avg(ph) ph_avg,
-       avg(sal) sal_avg, avg(cond) cond_avg, avg(tds) tds_avg, avg(turb) turb_avg,
+       avg(sal) sal_avg, avg(cond) cond_avg, avg(turb) turb_avg,
        count(*) n
 from public.readings
 group by device, date_trunc('day', created_at)

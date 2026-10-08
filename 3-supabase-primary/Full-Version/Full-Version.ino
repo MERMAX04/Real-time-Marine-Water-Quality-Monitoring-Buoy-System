@@ -66,7 +66,7 @@ float rnd(float lo, float hi){ return lo + (random(0,1000)/1000.0)*(hi-lo); }
 
 // ---- ค่าอ่านล่าสุดจาก sensor (เฉพาะโพรบที่ติดตั้ง: DO, TUR, CT/SAL, pH + อุณหภูมิ) ----
 // ORP/CHL/OIW/BGA ไม่ได้ติดตั้งโพรบ (อ่านได้ 0 ตลอด) จึงไม่อ่าน/ไม่ส่ง — ดู 5-extensions/09
-float sDO, sTurb, sCond, sPH, sTemp, sSal, sTDS, sDOpct;
+float sDO, sTurb, sCond, sPH, sTemp, sSal, sDOpct;
 double gLat=1000, gLon=1000;       // พิกัด GPS ล่าสุด (1000 = ยังไม่ล็อกดาว)
 
 // ---- forward declarations (atCmd/waitFor + atCmd มี default arg) ----
@@ -128,8 +128,9 @@ bool readSensor(){
   float f[11];
   for(int i=0;i<11;i++) memcpy(&f[i], &resp[3 + i*4], 4);   // ถอด 11 floats
   sDO=f[0]; sTurb=f[1]; sCond=f[2]; sPH=f[3]; sTemp=f[4];
-  sSal=f[8]; sTDS=f[9]; sDOpct=f[10];
+  sSal=f[8]; sDOpct=f[10];
   // f[5] ORP / f[6] CHL / f[7] OIW-BGA = ไม่ได้ติดตั้งโพรบ (ได้ 0 ตลอด) -> ไม่ใช้
+  // f[9] TDS = เซนเซอร์คำนวณจาก EC (TDS = EC µS/cm × 0.64) ไม่ใช่ค่าวัด -> ไม่ใช้
 
   // เฟรมผ่าน CRC แต่ค่าหลักเป็น 0 หมด = sensor ยังไม่พร้อม/ไฟไม่พอ (เคยเกิดตอนปิดทุ่น: pH=0 DO=0)
   // -> ถือว่าอ่านไม่สำเร็จ จะได้ส่ง heartbeat sensor_ok=false แทนค่า 0 หลอกๆ
@@ -273,12 +274,12 @@ void loop(){
   bool ok = true;                                  // FAKE = ไลฟ์เสมอ ; ของจริงเซ็ตด้านล่าง
 #if USE_FAKE
   sDO=rnd(4,9); sDOpct=rnd(70,120); sTemp=rnd(26,31); sPH=rnd(7.5,8.5);
-  sSal=rnd(28,35); sCond=rnd(40,55); sTDS=rnd(28,40); sTurb=rnd(1,25);
+  sSal=rnd(28,35); sCond=rnd(40,55); sTurb=rnd(1,25);
 #else
   ok=false;
   for(int a=0; a<3 && !ok; a++){ ok=readSensor(); if(!ok) delay(250); }   // ลองซ้ำได้ 3 ครั้ง
-  if(ok) Serial.printf("Sensor: DO=%.2f DO%%=%.0f temp=%.2f pH=%.2f sal=%.2f cond=%.2f tds=%.2f turb=%.1f\n",
-                       sDO, sDOpct, sTemp, sPH, sSal, sCond, sTDS, sTurb);
+  if(ok) Serial.printf("Sensor: DO=%.2f DO%%=%.0f temp=%.2f pH=%.2f sal=%.2f cond=%.2f turb=%.1f\n",
+                       sDO, sDOpct, sTemp, sPH, sSal, sCond, sTurb);
   else   Serial.println("อ่าน sensor ไม่สำเร็จ — ส่ง heartbeat (sensor_ok=false) เพื่อบอกว่า ESP ยังไลฟ์");
   // เดิม: ถ้าอ่านไม่ได้จะ 'ข้ามรอบ' ทำให้ฝั่งบกแยกไม่ออกว่า sensor เสีย หรือ ESP หลุด
   // ใหม่: ส่งแถว heartbeat (sensor_ok=false ไม่มีค่ามั่ว) เพื่อบอกว่า ESP+4G ยังทำงาน
@@ -298,7 +299,6 @@ void loop(){
     body += ",\"ph\":"     + String(sPH,2);
     body += ",\"sal\":"    + String(sSal,2);
     body += ",\"cond\":"   + String(sCond,2);
-    body += ",\"tds\":"    + String(sTDS,2);
     body += ",\"turb\":"   + String(sTurb,2);
   }
   if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง

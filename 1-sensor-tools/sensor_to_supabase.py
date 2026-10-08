@@ -100,9 +100,8 @@ def main():
                     "ph":     round(f[3], 2),
                     "temp":   round(f[4], 2),
                     "sal":    round(f[8], 2),
-                    "tds":    round(f[9], 2),
                     "do_pct": round(f[10], 2),
-                    # ORP/Chl/OIW-BGA ตอนนี้ = 0 (ไม่มี probe/เซนเซอร์แสง) — ไม่ส่ง
+                    # ORP/Chl/OIW-BGA = ไม่ได้ติดโพรบ · TDS = คำนวณจาก EC — ไม่ส่ง (ไม่มีคอลัมน์ในฐานข้อมูลแล้ว)
                 }
                 try:
                     code = post_supabase(payload)

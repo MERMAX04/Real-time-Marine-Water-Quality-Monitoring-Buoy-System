@@ -21,7 +21,7 @@
     /* ---- สี categorical ตามพารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
     --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-ph:#19b6c4;
     /* ค่าที่ probe จริงวัดได้เพิ่ม */
-    --c-temp:#e8663b; --c-cond:#7d74e0; --c-tds:#b5893f; --c-dopct:#4bb3e0;
+    --c-temp:#e8663b; --c-cond:#7d74e0; --c-dopct:#4bb3e0;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
@@ -450,7 +450,7 @@ let lastDataAt = null, lastTs = null, lastPushAt = null;
    ideal/range = เกณฑ์ (อิงแนวทางมาตรฐานคุณภาพน้ำทะเลชายฝั่ง — ⚠️ ยืนยันตัวเลขกับ
    มาตรฐานกรมควบคุมมลพิษจริงก่อนใช้อ้างอิงในเล่มรายงาน) */
 // ★ แสดงเฉพาะค่าที่ probe ของ sensor ตัวนี้ "อ่านได้จริง" (ยืนยันจาก read_sensor.py)
-//   ⚠️ ideal/range ของ temp/cond/tds/do% เป็นค่าตั้งต้น — ค่อยจูนหลังจุ่มน้ำทะเลจริง
+//   ⚠️ ideal/range ของ temp/cond/do% เป็นค่าตั้งต้น — ค่อยจูนหลังจุ่มน้ำทะเลจริง
 const PARAMS = [
   /* ★ 5 ค่าหลัก จาก 4 โพรบที่ติดตั้ง: DO · TUR · CT/SAL (ให้ทั้ง EC + ความเค็ม) · pH
      (ORP/CHL/OIW/BGA ไม่ได้ติดตั้งโพรบ — ตัดออก ดู 5-extensions/09) */
@@ -637,7 +637,7 @@ function buildInsight(wqiObj){
    ========================================================================= */
 let sbLatest = {}, sbLastTs = null;   // sbLastTs = created_at ของแถวล่าสุดที่รับมาแล้ว (กันนับซ้ำ realtime/polling)
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
-function mapRow(r){ return {do:r.do_val, do_pct:(r.do_pct!=null&&r.do_pct<=2?r.do_pct*100:r.do_pct), temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,  // do_pct บางเซนเซอร์ส่งเป็นสัดส่วน (0.90) -> แปลงเป็น % (90)
+function mapRow(r){ return {do:r.do_val, do_pct:(r.do_pct!=null&&r.do_pct<=2?r.do_pct*100:r.do_pct), temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, turb:r.turb,  // do_pct บางเซนเซอร์ส่งเป็นสัดส่วน (0.90) -> แปลงเป็น % (90)
                             lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
                             sensor_ok:r.sensor_ok}; }                            // heartbeat: false = ESP ไลฟ์ แต่ sensor เสีย
 /* เติม history ย้อนหลังจาก DB ตอนเปิดหน้า -> รีเฟรชแล้วกราฟ/ตาราง/พยากรณ์ มีข้อมูลทันที
@@ -968,7 +968,7 @@ const DEC_M={ph:2,do_val:2,do_pct:0,temp:1,sal:1,cond:1,turb:1};
 function inBandJS(v,band){ const lo=band[0],hi=band[1]; if(lo!=null&&v<lo)return false; if(hi!=null&&v>hi)return false; return true; }
 function bandStatusJS(v,g,o){ if(inBandJS(v,g))return'green'; if(inBandJS(v,o))return'orange'; return'red'; }
 
-/* สถานะสีของค่าเดียว ตามเกณฑ์โหมดปัจจุบัน (null = ค่านี้ไม่อยู่ในเกณฑ์ตัดสิน เช่น TDS) */
+/* สถานะสีของค่าเดียว ตามเกณฑ์โหมดปัจจุบัน (null = ค่านี้ไม่อยู่ในเกณฑ์ตัดสินของโหมด) */
 function paramStatusMode(k,v){
   if(!MODE_CFG||v==null||isNaN(v)) return null;
   const c=MODE_CFG.modes[CUR_MODE].criteria[cfgKey(k)];
@@ -1065,7 +1065,7 @@ function setBadge(p,v){
   if(ms){
     const map={green:['good','🟢','ปลอดภัย'],orange:['warning','🟠','ระวัง'],red:['critical','🔴','อันตราย']}[ms];
     b.className='badge '+map[0]; b.innerHTML=`<span>${map[1]}</span>${map[2]}`;
-  } else if(v!=null && !isNaN(v)){                 // ค่าไม่มีเกณฑ์ตัดสิน (เช่น TDS) หรือยังไม่โหลด config
+  } else if(v!=null && !isNaN(v)){                 // ค่าไม่มีเกณฑ์ตัดสิน หรือยังไม่โหลด config
     b.className='badge nodata'; b.innerHTML='<span>·</span>อ้างอิง';
   }
 }
