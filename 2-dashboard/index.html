@@ -19,8 +19,7 @@
     /* ---- สีสถานะ (ผ่านตัวตรวจ dataviz — ใช้คู่ไอคอน+ป้ายเสมอ) ---- */
     --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
     /* ---- สี categorical ตามพารามิเตอร์ (ตรวจแล้วบนพื้นทะเล) ---- */
-    --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-chl:#008300;
-    --c-orp:#9085e9; --c-oil:#e66767; --c-algae:#d55181; --c-ph:#19b6c4;
+    --c-do:#3987e5; --c-sal:#199e70; --c-turb:#c98500; --c-ph:#19b6c4;
     /* ค่าที่ probe จริงวัดได้เพิ่ม */
     --c-temp:#e8663b; --c-cond:#7d74e0; --c-tds:#b5893f; --c-dopct:#4bb3e0;
   }
@@ -453,16 +452,13 @@ let lastDataAt = null, lastTs = null, lastPushAt = null;
 // ★ แสดงเฉพาะค่าที่ probe ของ sensor ตัวนี้ "อ่านได้จริง" (ยืนยันจาก read_sensor.py)
 //   ⚠️ ideal/range ของ temp/cond/tds/do% เป็นค่าตั้งต้น — ค่อยจูนหลังจุ่มน้ำทะเลจริง
 const PARAMS = [
-  /* ★ 9 ค่าหลัก จาก 8 โพรบในคู่มือ (CT/SAL ให้ทั้ง EC + ความเค็ม) — อยู่ 2 แถวแรก */
+  /* ★ 5 ค่าหลัก จาก 4 โพรบที่ติดตั้ง: DO · TUR · CT/SAL (ให้ทั้ง EC + ความเค็ม) · pH
+     (ORP/CHL/OIW/BGA ไม่ได้ติดตั้งโพรบ — ตัดออก ดู 5-extensions/09) */
   { key:'do',    th:'ออกซิเจนละลายน้ำ', en:'Dissolved Oxygen', unit:'mg/L',  icon:'🫧', color:'var(--c-do)',    ideal:[4,8],      range:[2,10],     w:.18 },
   { key:'turb',  th:'ความขุ่น',         en:'Turbidity',         unit:'NTU',   icon:'🌫️', color:'var(--c-turb)',  ideal:[0,10],     range:[0,50],     w:.13 },
   { key:'sal',   th:'ความเค็ม',         en:'Salinity',          unit:'ppt',   icon:'🧂', color:'var(--c-sal)',   ideal:[30,34],    range:[26,36],    w:.13 },
   { key:'cond',  th:'การนำไฟฟ้า',       en:'Conductivity',      unit:'mS/cm', icon:'⚡', color:'var(--c-cond)',  ideal:[40,55],    range:[0,65],     w:.12 },
-  { key:'oil',   th:'น้ำมัน/ไฮโดรคาร์บอน', en:'Oil in Water (OIW)',      unit:'µg/L',     icon:'🛢️', color:'var(--c-oil)',   ideal:[0,1],      range:[0,50],     w:.10 },
   { key:'ph',    th:'ความเป็นกรด-ด่าง', en:'Potential of Hydrogen', unit:'', icon:'🧪', color:'var(--c-ph)',    ideal:[7.5,8.5],  range:[6,9],      w:.15 },
-  { key:'orp',   th:'ศักย์ออกซิเดชัน-รีดักชัน', en:'Oxidation-Reduction (ORP)', unit:'mV',   icon:'⚡', color:'var(--c-orp)',   ideal:[200,400],  range:[100,500],  w:.10 },
-  { key:'chl',   th:'คลอโรฟิลล์',        en:'Chlorophyll (CHL)',    unit:'µg/L',     icon:'🌿', color:'var(--c-chl)',   ideal:[0,5],      range:[0,20],     w:.10 },
-  { key:'algae', th:'สาหร่ายสีเขียวแกมน้ำเงิน', en:'Blue-Green Algae (BGA)', unit:'Cells/mL', icon:'🦠', color:'var(--c-algae)', ideal:[0,20000],  range:[0,120000], w:.10 },
   /* ค่ารอง (มาจากโพรบ DO / ค่าในตัว ไม่ใช่โพรบแยก) — แถวท้าย */
   { key:'do_pct',th:'ออกซิเจน (อิ่มตัว)',en:'DO Saturation',    unit:'%',     icon:'📊', color:'var(--c-dopct)', ideal:[80,120],   range:[0,200],    w:.10 },
   { key:'temp',  th:'อุณหภูมิ',         en:'Temperature',       unit:'°C',    icon:'🌡️', color:'var(--c-temp)',  ideal:[26,31],    range:[20,36],    w:.10 },
@@ -537,20 +533,6 @@ function detectEvents(){
   const has=k=>history[k] && history[k].length>0;   // null-safe: ค่าที่ซ่อน (ไม่มีใน PARAMS) จะ = ไม่มีข้อมูล
   const si=k=>has(k)?subIndex(P[k],history[k].at(-1)):100;   // 0-100 (ต่ำ=แย่)
   const ev=[];
-  // สาหร่ายบลูม (ยูโทรฟิเคชัน): คลอโรฟิลล์ + สาหร่ายสีเขียวสูงพร้อมกัน
-  if (si('chl')<55 && si('algae')<60){
-    const crit = si('do')<45;
-    ev.push({id:'bloom', cls:crit?'critical':'serious', icon:'🦠',
-      title:'เสี่ยงสาหร่ายบลูม (ยูโทรฟิเคชัน)',
-      detail:'คลอโรฟิลล์และสาหร่ายสีเขียวสูงพร้อมกัน'+(crit?' ร่วมกับออกซิเจนต่ำ':''),
-      action:'เฝ้าระวัง DO ช่วงกลางคืน อาจต่ำจนสัตว์น้ำขาดออกซิเจน'});
-  }
-  // ปนเปื้อน/คราบน้ำมัน: น้ำมัน + ความขุ่นสูงพร้อมกัน
-  if (si('oil')<55 && si('turb')<60)
-    ev.push({id:'contam', cls:'serious', icon:'🛢️',
-      title:'อาจมีการปนเปื้อน/คราบน้ำมัน',
-      detail:'น้ำมันและความขุ่นสูงผิดปกติพร้อมกัน',
-      action:'ตรวจแหล่งน้ำทิ้ง/เรือในบริเวณ และเก็บตัวอย่างน้ำ'});
   // ออกซิเจนต่ำวิกฤต (Hypoxia)
   if (si('do')<28)
     ev.push({id:'hypoxia', cls:'critical', icon:'🫧',
@@ -592,12 +574,10 @@ function sensorIssues(){
   return out;
 }
 /* ---------- AI: WQI รวม + หมวด ---------- */
-const EXTRA_KEYS=['chl','orp','oil','algae'];   // ค่าเสริม: ถ้าอ่าน 0 = โพรบยังไม่ต่อ -> ไม่คิดใน WQI
 function computeWQI(){
   let sum=0, wsum=0; const parts={};
   PARAMS.forEach(p=>{
     const v = history[p.key].at(-1); if (v==null) return;
-    if(EXTRA_KEYS.includes(p.key) && v===0){ parts[p.key]=null; return; }   // โพรบหลุด/ยังไม่ต่อ -> ไม่ตัดคะแนน
     const si = subIndex(p,v); parts[p.key]=si; sum+=si*p.w; wsum+=p.w;
   });
   const wqi = wsum? Math.round(sum/wsum) : 0;
@@ -659,8 +639,7 @@ let sbLatest = {}, sbLastTs = null;   // sbLastTs = created_at ของแถ�
 /* map คอลัมน์ตาราง Supabase -> คีย์ที่ Dashboard ใช้ (do_val -> do) */
 function mapRow(r){ return {do:r.do_val, do_pct:(r.do_pct!=null&&r.do_pct<=2?r.do_pct*100:r.do_pct), temp:r.temp, ph:r.ph, sal:r.sal, cond:r.cond, tds:r.tds, turb:r.turb,  // do_pct บางเซนเซอร์ส่งเป็นสัดส่วน (0.90) -> แปลงเป็น % (90)
                             lat:r.lat, lon:r.lon,                                // พิกัด GPS จากทุ่น
-                            sensor_ok:r.sensor_ok,                               // heartbeat: false = ESP ไลฟ์ แต่ sensor เสีย
-                            chl:r.chl, orp:r.orp, oil:r.oil, algae:r.algae}; }  // เผื่อเปิดค่าที่ซ่อนคืน
+                            sensor_ok:r.sensor_ok}; }                            // heartbeat: false = ESP ไลฟ์ แต่ sensor เสีย
 /* เติม history ย้อนหลังจาก DB ตอนเปิดหน้า -> รีเฟรชแล้วกราฟ/ตาราง/พยากรณ์ มีข้อมูลทันที
    (เดิมดึงมาแค่แถวเดียว กราฟจึงเริ่มนับหนึ่งใหม่ทุกครั้งที่รีเฟรช)
    rows = เรียงจาก "เก่า -> ใหม่" */
@@ -1013,18 +992,6 @@ function evalWaterJS(d){
     if(st==='red'){ anyRed=true; if(c.tier==='critical')anyCritRed=true; redR.push(`${META[ck].label} ${text}`); }
     else if(st==='orange'){ anyOrange=true; watchR.push(`${META[ck].label} ${text}`); }
   }
-  // ค่าเสริม (chl/orp/oil/algae): เกณฑ์ทั่วไป -> ระดับ advisory (แดง/ส้ม ดันสถานะรวมเป็น "ส้ม" ไม่ถึงแดงวิกฤต)
-  const EX=MODE_CFG.extra||{};
-  for(const k of Object.keys(EX)){
-    if(crit[k])continue;
-    const v=d[k]; if(v==null||isNaN(v))continue;
-    if(v===0)continue;                        // 0.00 เป๊ะ = โพรบยังไม่ต่อ/ไม่อ่าน (ไม่ใช่ค่าจริง) -> ข้าม
-    const c=EX[k], st=bandStatusJS(v,c.green,c.orange);
-    if(st==='green')continue;
-    const text=`${(+v).toFixed(c.dec??1)}${c.unit?' '+c.unit:''}`;
-    if(st==='red'){ anyRed=true; redR.push(`${c.label} ${text}`); }
-    else{ anyOrange=true; watchR.push(`${c.label} ${text}`); }
-  }
   let overall,reasons;
   if(anyCritRed){overall='red';reasons=redR;}
   else if(anyRed||anyOrange){overall='orange';reasons=redR.concat(watchR);}
@@ -1092,15 +1059,9 @@ let MODE_CFG=null, CUR_MODE='recreation', modeSbClient=null;
 
 function firstEmoji(s){ const m=[...(s||'')]; return m.length?m[0]:'🌊'; }
 
-/* สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไปจาก MODE_CFG.extra */
-function extraStatusJS(k,v){
-  if(!MODE_CFG||!MODE_CFG.extra||v==null||isNaN(v)||v===0) return null;   // 0.00 = โพรบยังไม่ต่อ -> ไม่ตัดสินสี
-  const c=MODE_CFG.extra[k]; if(!c) return null;
-  return bandStatusJS(v,c.green,c.orange);
-}
 function setBadge(p,v){
   const b=document.getElementById('badge-'+p.key); if(!b)return;
-  const ms=paramStatusMode(p.key,v) || extraStatusJS(p.key,v);   // เกณฑ์โหมด ไม่มีก็ลองค่าเสริม
+  const ms=paramStatusMode(p.key,v);   // สีตามเกณฑ์ของโหมดปัจจุบัน
   if(ms){
     const map={green:['good','🟢','ปลอดภัย'],orange:['warning','🟠','ระวัง'],red:['critical','🔴','อันตราย']}[ms];
     b.className='badge '+map[0]; b.innerHTML=`<span>${map[1]}</span>${map[2]}`;

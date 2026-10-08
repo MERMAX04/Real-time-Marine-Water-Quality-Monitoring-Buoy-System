@@ -27,7 +27,7 @@ if (($in['key'] ?? '') !== API_KEY) {
 function num($in, $k) { return isset($in[$k]) && $in[$k] !== '' ? floatval($in[$k]) : null; }
 
 $device = $in['device'] ?? DEVICE_ID;
-$cols = ['do_val','do_pct','temp','ph','sal','cond','tds','turb','chl','orp','oil','algae','lat','lon'];
+$cols = ['do_val','do_pct','temp','ph','sal','cond','tds','turb','lat','lon'];   // ORP/CHL/OIW/BGA ตัดออก (ไม่ได้ติดตั้งโพรบ)
 
 // รับค่าตามชื่อคอลัมน์ + รองรับ alias เก่า (do -> do_val) เผื่อทดสอบด้วย query แบบเดิม
 $vals = [];

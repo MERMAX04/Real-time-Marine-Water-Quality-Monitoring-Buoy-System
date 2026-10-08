@@ -45,10 +45,8 @@ void loop() {
       + "&do="    + String(rnd(4, 9), 2)
       + "&sal="   + String(rnd(28, 35), 2)
       + "&turb="  + String(rnd(1, 25), 2)
-      + "&chl="   + String(rnd(0.5, 12), 2)
-      + "&orp="   + String(rnd(150, 400), 0)
-      + "&oil="   + String(rnd(0, 30), 2)
-      + "&algae=" + String(rnd(0.2, 15), 2);
+      + "&ph="    + String(rnd(7.5, 8.5), 2)
+      + "&cond="  + String(rnd(40, 55), 2);
 
     HTTPClient http;
     http.begin(url);                 // ถ้าเป็น https จะใช้ TLS ให้อัตโนมัติ

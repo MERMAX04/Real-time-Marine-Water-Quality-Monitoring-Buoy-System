@@ -20,10 +20,10 @@ try {
             'do'    => is_null($r['do_val'])?null:(float)$r['do_val'],
             'sal'   => is_null($r['sal'])?null:(float)$r['sal'],
             'turb'  => is_null($r['turb'])?null:(float)$r['turb'],
-            'chl'   => is_null($r['chl'])?null:(float)$r['chl'],
-            'orp'   => is_null($r['orp'])?null:(float)$r['orp'],
-            'oil'   => is_null($r['oil'])?null:(float)$r['oil'],
-            'algae' => is_null($r['algae'])?null:(float)$r['algae'],
+            'ph'    => is_null($r['ph'])?null:(float)$r['ph'],
+            'cond'  => is_null($r['cond'])?null:(float)$r['cond'],
+            'do_pct'=> is_null($r['do_pct'])?null:(float)$r['do_pct'],
+            'temp'  => is_null($r['temp'])?null:(float)$r['temp'],
         ];
     }, $rows);
     echo json_encode($out);

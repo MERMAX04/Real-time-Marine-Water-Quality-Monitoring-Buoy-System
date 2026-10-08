@@ -22,14 +22,6 @@
 
   "_bandFormat": "green/orange = [min, max] (null = ไม่จำกัดด้านนั้น). ค่าอยู่ในช่วง green→เขียว, ไม่เขียวแต่อยู่ในช่วง orange→ส้ม, นอกช่วง orange→แดง. tier: critical = แดง→สถานะรวมแดง, advisory = แดง→สถานะรวมส้ม",
 
-  "_extraNote": "ค่าเสริม (นอกเกณฑ์ตัดสินตามโหมด) — ใช้เกณฑ์ทั่วไปเดียวกันทุกโหมด แสดงสีสถานะ 🟢🟠🔴 แต่ไม่กระทบสถานะรวม",
-  "extra": {
-    "chl":   { "label": "คลอโรฟิลล์",    "unit": "µg/L",     "dec": 2, "green": [null, 10],    "orange": [null, 30] },
-    "orp":   { "label": "ORP",           "unit": "mV",       "dec": 1, "green": [150, 450],    "orange": [50, 550] },
-    "oil":   { "label": "น้ำมัน",         "unit": "µg/L",     "dec": 2, "green": [null, 1],     "orange": [null, 5] },
-    "algae": { "label": "สาหร่าย (BGA)",  "unit": "Cells/mL", "dec": 1, "green": [null, 20000], "orange": [null, 50000] }
-  },
-
   "modes": {
     "conservation": {
       "id": 1,

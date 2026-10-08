@@ -3,7 +3,7 @@
 //   ส่งข้อความ + จัดรูป /status (แยกสีต่อค่า) + /swim (สถานะรวมตามโหมด)
 //   ตรรกะ/เกณฑ์ทั้งหมดมาจาก water-eval.ts + water-modes.json (แก้ที่นั่นที่เดียว)
 // =========================================================================
-import { evalWater, STATUS_COLORS, MODES, EXTRA, extraStatus, getMode, setMode, modeKeyValid, DEFAULT_MODE } from "./water-eval.ts";
+import { evalWater, STATUS_COLORS, MODES, getMode, setMode, modeKeyValid, DEFAULT_MODE } from "./water-eval.ts";
 import type { WaterEval } from "./water-eval.ts";
 export { getMode, setMode, MODES, modeKeyValid, DEFAULT_MODE };
 
@@ -68,14 +68,6 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
   m += `\n\n${dot(ev.overall)} ${ev.advice}`;
   for (const p of ev.params) m += `\n     ${STATUS_COLORS[p.status].emoji} ${p.label}: ${p.text}`;
 
-  // ค่าที่ไม่ได้อยู่ในเกณฑ์ตัดสิน (แสดงเฉยๆ)
-  // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น (TDS เอาออก: ไม่ใช่ค่าวัดจริง คำนวณจาก EC)
-  for (const key of ["chl", "orp", "oil", "algae"]) {
-    const v = n((r as Record<string, unknown>)[key]); if (isNaN(v)) continue;
-    const c = EXTRA[key]; if (!c) continue;
-    const st = extraStatus(v, key);
-    m += `\n     ${st ? STATUS_COLORS[st].emoji : "▫️"} ${c.label}: ${v.toFixed(c.dec)}${c.unit ? " " + c.unit : ""}`;
-  }
   if (n(r.lat) >= -90 && n(r.lat) <= 90 && !isNaN(n(r.lon)))
     m += `\n     📍 พิกัด: ${n(r.lat).toFixed(6)}, ${n(r.lon).toFixed(6)}`;
 

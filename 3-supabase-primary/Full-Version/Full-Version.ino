@@ -64,8 +64,9 @@ TinyGsm        modem(SerialAT);        // ส่ง HTTPS ผ่าน HTTP-app 
 unsigned long lastSend = 0;
 float rnd(float lo, float hi){ return lo + (random(0,1000)/1000.0)*(hi-lo); }
 
-// ---- ค่าอ่านล่าสุดจาก sensor (11 ค่า ตามลำดับ frame 0x2600) ----
-float sDO, sTurb, sCond, sPH, sTemp, sORP, sChl, sOIW, sSal, sTDS, sDOpct, sAlgae;
+// ---- ค่าอ่านล่าสุดจาก sensor (เฉพาะโพรบที่ติดตั้ง: DO, TUR, CT/SAL, pH + อุณหภูมิ) ----
+// ORP/CHL/OIW/BGA ไม่ได้ติดตั้งโพรบ (อ่านได้ 0 ตลอด) จึงไม่อ่าน/ไม่ส่ง — ดู 5-extensions/09
+float sDO, sTurb, sCond, sPH, sTemp, sSal, sTDS, sDOpct;
 double gLat=1000, gLon=1000;       // พิกัด GPS ล่าสุด (1000 = ยังไม่ล็อกดาว)
 
 // ---- forward declarations (atCmd/waitFor + atCmd มี default arg) ----
@@ -102,27 +103,6 @@ void rs485Send(const uint8_t* buf, int len){
   SerialRS.flush();                         // รอส่งจบก่อนสลับกลับมารับ
   if(PIN_485_DE >= 0) digitalWrite(PIN_485_DE, LOW);
 }
-// อ่าน 1 ค่า float (2 registers) จาก register ที่ระบุ — คืน true ถ้าอ่านสำเร็จ
-// ใช้กับ OIW(0x260D)/BGA(0x260E) ที่ใช้ "ช่องรวม" ในเฟรม 0x2600 (แยกไม่ออก ต้องอ่านแยก)
-bool readReg1(uint16_t reg, float &out){
-  uint8_t req[8] = {SENSOR_ADDR, 0x03, (uint8_t)(reg>>8), (uint8_t)(reg&0xFF), 0x00, 0x02, 0, 0};
-  uint16_t crc = modbusCRC(req, 6);
-  req[6] = crc & 0xFF; req[7] = (crc >> 8) & 0xFF;
-  while(SerialRS.available()) SerialRS.read();
-  rs485Send(req, 8);
-  const int NEED = 3 + 4 + 2;                       // 01 03 04 <4 ไบต์> <CRC> = 9
-  uint8_t resp[16]; int n = 0; uint32_t t0 = millis();
-  while(n < NEED && millis() - t0 < 500){
-    while(SerialRS.available() && n < (int)sizeof(resp)) resp[n++] = SerialRS.read();
-  }
-  if(n < NEED) return false;
-  if(resp[0] != SENSOR_ADDR || resp[1] != 0x03 || resp[2] != 4) return false;   // exception/frame ผิด
-  uint16_t rc = modbusCRC(resp, 3 + 4);
-  if((rc & 0xFF) != resp[7] || ((rc >> 8) & 0xFF) != resp[8]) return false;      // CRC ไม่ผ่าน
-  memcpy(&out, &resp[3], 4);
-  return true;
-}
-
 // อ่านทุกค่ารวดเดียว: 01 03 26 00 00 16 + CRC -> ตอบ 01 03 2C <44 ไบต์> <CRC> = 49 ไบต์
 // float เป็น IEEE754 little-endian (DCBA) → ESP32 little-endian memcpy ได้ตรงๆ
 bool readSensor(){
@@ -148,12 +128,15 @@ bool readSensor(){
   float f[11];
   for(int i=0;i<11;i++) memcpy(&f[i], &resp[3 + i*4], 4);   // ถอด 11 floats
   sDO=f[0]; sTurb=f[1]; sCond=f[2]; sPH=f[3]; sTemp=f[4];
-  sORP=f[5]; sChl=f[6]; sSal=f[8]; sTDS=f[9]; sDOpct=f[10];   // f[7] = ช่องรวม OIW/BGA -> อ่านแยกด้านล่างแทน
+  sSal=f[8]; sTDS=f[9]; sDOpct=f[10];
+  // f[5] ORP / f[6] CHL / f[7] OIW-BGA = ไม่ได้ติดตั้งโพรบ (ได้ 0 ตลอด) -> ไม่ใช้
 
-  // OIW กับ BGA ใช้ "ช่องรวม" ในเฟรม (f[7] แยกไม่ออก) -> อ่าน register แยกให้ได้ทั้งคู่ถูกต้อง
-  float v;
-  sOIW   = readReg1(0x260D, v) ? v : NAN;   // OIW (น้ำมัน) µg/L
-  sAlgae = readReg1(0x260E, v) ? v : NAN;   // BGA (สาหร่าย) Cells/mL
+  // เฟรมผ่าน CRC แต่ค่าหลักเป็น 0 หมด = sensor ยังไม่พร้อม/ไฟไม่พอ (เคยเกิดตอนปิดทุ่น: pH=0 DO=0)
+  // -> ถือว่าอ่านไม่สำเร็จ จะได้ส่ง heartbeat sensor_ok=false แทนค่า 0 หลอกๆ
+  if(sPH == 0 && sDO == 0 && sCond == 0){
+    Serial.println("  RS485: ได้ค่า 0 ทั้งหมด (pH/DO/EC) — sensor ยังไม่พร้อม ถือว่าอ่านไม่สำเร็จ");
+    return false;
+  }
   return true;
 }
 
@@ -291,7 +274,6 @@ void loop(){
 #if USE_FAKE
   sDO=rnd(4,9); sDOpct=rnd(70,120); sTemp=rnd(26,31); sPH=rnd(7.5,8.5);
   sSal=rnd(28,35); sCond=rnd(40,55); sTDS=rnd(28,40); sTurb=rnd(1,25);
-  sChl=rnd(0,5); sORP=rnd(200,400); sOIW=rnd(0,1); sAlgae=rnd(0,20000);   // ค่าเสริม (mock)
 #else
   ok=false;
   for(int a=0; a<3 && !ok; a++){ ok=readSensor(); if(!ok) delay(250); }   // ลองซ้ำได้ 3 ครั้ง
@@ -318,10 +300,6 @@ void loop(){
     body += ",\"cond\":"   + String(sCond,2);
     body += ",\"tds\":"    + String(sTDS,2);
     body += ",\"turb\":"   + String(sTurb,2);
-    body += ",\"chl\":"    + String(sChl,2);    // คลอโรฟิลล์ (µg/L)
-    body += ",\"orp\":"    + String(sORP,1);    // ORP (mV)
-    if(!isnan(sOIW))   body += ",\"oil\":"   + String(sOIW,2);    // OIW น้ำมัน (µg/L) — อ่านแยก 0x260D
-    if(!isnan(sAlgae)) body += ",\"algae\":" + String(sAlgae,1);  // BGA สาหร่าย (Cells/mL) — อ่านแยก 0x260E
   }
   if(gLat>=-90 && gLat<=90 && gLon>=-180 && gLon<=180)     // มีพิกัด GPS แล้วค่อยส่ง
     body += ",\"lat\":" + String(gLat,6) + ",\"lon\":" + String(gLon,6);

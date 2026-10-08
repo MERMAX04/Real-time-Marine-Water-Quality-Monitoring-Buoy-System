@@ -100,12 +100,6 @@ function wm_band_status($v, $green, $orange) {
     return 'red';
 }
 
-// สถานะสีของค่าเสริม (chl/orp/oil/algae) — เกณฑ์ทั่วไป ไม่ผูกโหมด
-function wm_extra_status($v, $key) {
-    $extra = wm_config()['extra'] ?? [];
-    if (!isset($extra[$key]) || $v == 0) return null;   // 0.00 = โพรบยังไม่ต่อ -> ไม่ตัดสินสี
-    return wm_band_status($v, $extra[$key]['green'], $extra[$key]['orange']);
-}
 
 function wm_dot($s) {
     $map = ['green' => '🟢', 'orange' => '🟠', 'red' => '🔴', 'unknown' => '⚪'];
@@ -171,21 +165,6 @@ function wm_eval($r, $modeKey) {
         }
     }
 
-    // ค่าเสริม (chl/orp/oil/algae): เกณฑ์ทั่วไป -> ระดับ advisory (แดง/ส้ม ดันสถานะรวมเป็น "ส้ม" ไม่ถึงแดงวิกฤต)
-    $extra = $cfg['extra'] ?? [];
-    foreach ($extra as $k => $c) {
-        if (isset($crit[$k])) continue;
-        $v = $g($k);
-        if ($v === null) continue;
-        if ($v == 0) continue;              // 0.00 เป๊ะ = โพรบยังไม่ต่อ/ไม่อ่าน (ไม่ใช่ค่าจริง) -> ข้าม
-        $st = wm_band_status($v, $c['green'], $c['orange']);
-        if ($st === 'green') continue;
-        $unit = $c['unit'] ?? '';
-        $text = number_format($v, $c['dec'] ?? 1) . ($unit ? ' ' . $unit : '');
-        if ($st === 'red') { $anyRed = true; $redR[] = $c['label'] . ' ' . $text; }
-        else               { $anyOrange = true; $watchR[] = $c['label'] . ' ' . $text; }
-    }
-
     if ($anyCritRed)                 { $overall = 'red';    $reasons = $redR; }
     elseif ($anyRed || $anyOrange)   { $overall = 'orange'; $reasons = array_merge($redR, $watchR); }
     else                             { $overall = 'green';  $reasons = []; }
@@ -247,14 +226,6 @@ function tg_fmt_status($r) {
     foreach ($ev['params'] as $p) $m .= "\n     " . wm_dot($p['status']) . " " . $p['label'] . ": " . $p['text'];
 
     $f = function ($v, $d = 2) { return ($v === null || $v === '') ? '–' : number_format((float)$v, $d); };
-    // ค่าเสริม — ใช้สีสถานะ 🟢🟠🔴 เหมือนค่าอื่น (TDS เอาออก: ไม่ใช่ค่าวัดจริง คำนวณจาก EC)
-    $extra = wm_config()['extra'] ?? [];
-    foreach (['chl','orp','oil','algae'] as $key) {
-        if (($r[$key] ?? null) === null) continue;
-        $c = $extra[$key] ?? null; if (!$c) continue;
-        $st = wm_extra_status((float)$r[$key], $key);
-        $m .= "\n     " . ($st ? wm_dot($st) : "▫️") . " " . $c['label'] . ": " . $f($r[$key], $c['dec']) . ($c['unit'] ? " " . $c['unit'] : "");
-    }
     if (($r['lat'] ?? null) !== null && ($r['lon'] ?? null) !== null)
         $m .= "\n     📍 พิกัด: " . $f($r['lat'], 6) . ", " . $f($r['lon'], 6);
 
