@@ -102,7 +102,7 @@
 ### 4.1 ตารางหลัก
 | ตาราง | หน้าที่ |
 |-------|---------|
-| `readings` | ค่าที่ทุ่นส่ง (do_val, do_pct, temp, ph, sal, cond, turb, sensor_ok, lat, lon, created_at) · คอลัมน์ chl/orp/oil/algae เป็นคอลัมน์สำรองสำหรับหัววัดเสริม (ยังไม่ใช้) |
+| `readings` | ค่าที่ทุ่นส่ง (do_val, do_pct, temp, ph, sal, cond, turb, sensor_ok, lat, lon, created_at) |
 | `app_settings` | โหมดที่เลือกอยู่ (key='mode') — ใช้ร่วมทั้งเว็บ/Telegram |
 | `tg_subscribers` | chat_id ผู้รับแจ้งเตือน (กด /start) |
 | `alert_state` | เวลาแจ้งเตือนล่าสุด (กันเตือนซ้ำ = cooldown 30 นาที) |

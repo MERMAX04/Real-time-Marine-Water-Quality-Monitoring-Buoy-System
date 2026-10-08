@@ -16,7 +16,7 @@ Supabase = Backend-as-a-Service บน PostgreSQL (ข้อมูลเป็�
 ## ขั้นที่ 2 — สร้างตาราง + สิทธิ์ + realtime
 1. เมนูซ้าย **SQL Editor** → New query
 2. วางเนื้อหาไฟล์ `schema.sql` ทั้งหมด → กด **Run**
-3. จะได้ตาราง `readings` (ค่าน้ำทุกคอลัมน์ + `sensor_ok` heartbeat + `lat`/`lon` — คอลัมน์ chl/orp/oil/algae ยังมีแต่ทุ่นไม่ได้ส่ง เพราะไม่ได้ติดโพรบ) + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
+3. จะได้ตาราง `readings` (ค่าน้ำ 7 ค่า + TDS + `sensor_ok` heartbeat + `lat`/`lon`) + RLS policy (anon insert/read) + เปิด realtime + view รายวัน
 > ฝั่งบก (Telegram/admin/6 โหมด) รัน `supabase/schema-telegram.sql` + `supabase/schema-settings.sql` เพิ่ม (ดู [`../supabase/README.md`](../supabase/README.md))
 
 ## ขั้นที่ 3 — เอา URL + anon key มาใส่ Dashboard
