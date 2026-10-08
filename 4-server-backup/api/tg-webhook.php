@@ -1,7 +1,8 @@
 <?php
 /* =========================================================================
    tg-webhook.php  —  รับ "คำสั่งแชท" จาก Telegram (webhook) แล้วตอบทันที
-     /start  = สมัคร (เก็บ chat_id)   /status = ค่าล่าสุดจาก DB
+     /start  = สมัคร (เก็บ chat_id)   /status = ค่าล่าสุดจาก DB (แยกสี)
+     /swim   = ทำกิจกรรมได้ไหม         /mode   = ดู/เปลี่ยนโหมด (เปลี่ยนได้เฉพาะ TG_ADMINS)
      /stop   = ยกเลิก                 /help   = เมนู
    ตั้ง webhook:
      https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<โดเมน>/buoy/api/tg-webhook.php&secret_token=buoy-hook-2026

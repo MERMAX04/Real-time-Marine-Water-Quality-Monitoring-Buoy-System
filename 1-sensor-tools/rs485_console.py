@@ -9,9 +9,8 @@ rs485_console.py  —  คอนโซลโต้ตอบ ยิงคำส�
     py rs485_console.py COM9       # ระบุพอร์ต
 
 พิมพ์อะไรได้บ้าง (ที่ prompt >>> ):
-    all              อ่านทุกค่ารวดเดียว (0x2600, 22 regs = 11 float)
-    do  ph  temp  sal  turb  orp  chl  cond  tds  do%   อ่านทีละค่า
-    oil   algae      อ่านน้ำมัน(0x260D) / สาหร่าย(0x260E)
+    all              อ่านทุกค่ารวดเดียว (0x2600, 22 regs = 11 ช่อง float — ระบบใช้ 7 ค่า)
+    do  do%  temp  ph  sal  cond  turb   อ่านทีละค่า (7 ค่าที่ระบบใช้)
     status           อ่าน sensor status (0x0800) — probe ไหนต่ออยู่
     ver              อ่านเวอร์ชัน (0x0700)
     r 2601 2         อ่านเอง: register 0x2601 จำนวน 2 regs (ใส่เลขฐาน16)
@@ -51,7 +50,7 @@ def hexs(b): return " ".join(f"{x:02X}" for x in b) if b else "(ว่าง)"
 
 # คำสั่งสำเร็จรูป: ชื่อ -> (register, จำนวน regs, ชื่อค่า)
 PRESETS = {
-    "all":   (0x2600, 22, "ทุกค่า (11 float)"),
+    "all":   (0x2600, 22, "ทุกค่า (11 ช่อง float — ระบบใช้ 7 ค่า)"),
     "do":    (0x2601, 2,  "DO (mg/L)"),
     "turb":  (0x2602, 2,  "Turbidity (NTU)"),
     "cond":  (0x2603, 2,  "Conductivity (mS/cm)"),
@@ -59,12 +58,7 @@ PRESETS = {
     "temp":  (0x2606, 2,  "Temperature (C)"),
     "sal":   (0x2608, 2,  "Salinity (ppt)"),
     "do%":   (0x260A, 2,  "DO (%)"),
-    "orp":   (0x260B, 2,  "ORP (mV)"),
-    "chl":   (0x260C, 2,  "Chlorophyll (ug/L)"),
-    "oil":   (0x260D, 2,  "OIW น้ำมัน (ppm)"),
-    "algae": (0x260E, 2,  "BGA สาหร่าย (cells/mL)"),
-    "tds":   (0x260F, 2,  "TDS"),
-    "status":(0x0800, 2,  "Sensor status (4 ไบต์: error/power/probe flags — ใช้ probe_check.py ถอดความหมาย)"),
+    "status":(0x0800, 2,  "Sensor status (4 ไบต์: error / power / probe flags — ดูความหมายใน SENSOR-PROTOCOL.md)"),
     "ver":   (0x0700, 2,  "เวอร์ชัน hw/sw"),
 }
 

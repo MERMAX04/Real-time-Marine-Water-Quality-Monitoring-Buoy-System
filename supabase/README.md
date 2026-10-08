@@ -1,7 +1,7 @@
 # supabase/ — ฝั่งบก (Edge Functions) 🏝️
 
 Telegram (แจ้งเตือน + คำสั่งแชท), การประเมินตาม **6 โหมดมาตรฐานน้ำทะเลไทย** และ **สิทธิ์ admin** ทำที่ **Supabase** ทั้งหมด — ทุ่น ESP32 ทำแค่ อ่าน sensor → POST
-ทำให้ทุ่น **เบา/ประหยัดไฟ/เสถียร** และ `/status` **ตอบเร็ว (<1 วิ)** เพราะอ่านค่าล่าสุดจาก DB ตรงๆ
+ทำให้ทุ่น **เบา/ประหยัดไฟ/เสถียร** และคำสั่งแชท **ตอบทันที** เพราะอ่านค่าล่าสุดจาก DB ตรงๆ
 
 ```
 ทุ่น ESP32 ──POST──► readings ──(INSERT trigger)──► telegram-alert ──► Telegram (เตือนตามโหมด)
@@ -71,12 +71,13 @@ Supabase Studio → **Database → Webhooks → Create**
 ## ทดสอบ
 1. ทักบอท `/start` → ได้ข้อความต้อนรับ (แถว `tg_subscribers` เพิ่มขึ้น)
 2. พิมพ์ `/status` → บอทตอบค่าล่าสุด **ทันที**
-2b. พิมพ์ `/swim` → บอทตอบ **ธงลงเล่นน้ำ** (เขียว/เหลือง/แดง) + เหตุผล — ดูเกณฑ์ที่ [`5-extensions/05-blueflag-swim-safety.md`](../5-extensions/05-blueflag-swim-safety.md)
+2b. พิมพ์ `/swim` → บอทตอบ **สถานะรวมตามโหมด** (🟢/🟠/🔴 "ทำกิจกรรมได้ไหม") + เหตุผล — ดูเกณฑ์ที่ [`5-extensions/05-blueflag-swim-safety.md`](../5-extensions/05-blueflag-swim-safety.md)
 3. ทดสอบเตือน: Studio → SQL Editor รันแทรกค่าที่เข้าเกณฑ์ เช่น
    ```sql
    insert into readings (device, do_val, ph, temp, turb) values ('buoy-01', 2.0, 8.0, 30, 5);
    ```
-   → ทุก subscriber ต้องได้ 🌊 แจ้งเตือน (DO ต่ำ)
+   → ทุก subscriber ต้องได้ 🌊 แจ้งเตือน (DO ต่ำ = ค่าวิกฤตในโหมดนันทนาการ → สถานะรวมแดง)
+   > แถวทดสอบนี้จะขึ้นบนแดชบอร์ดด้วย ลบออกได้ที่ Table Editor หลังทดสอบ
 4. ดู log: `supabase functions logs telegram-alert`
 
 ## แก้เกณฑ์ 6 โหมด (ไม่ต้อง flash ทุ่น!)

@@ -1,37 +1,34 @@
-# 03 — เทรนด์รายวัน/สัปดาห์ + Heatmap
+# 03 — เทรนด์รายวัน/สัปดาห์ + Heatmap — 📋 แนวทางพัฒนาต่อ (ยังไม่ได้ทำ)
 
-Dashboard ตอนนี้เก็บประวัติแค่ในหน่วยความจำเบราว์เซอร์ (หายเมื่อปิดหน้า)
-โมดูลนี้ทำให้ดูย้อนหลัง **หลายวัน/สัปดาห์** จากข้อมูลจริงที่สะสมใน cloud + เห็นรูปแบบรายชั่วโมง
+ตอนนี้แดชบอร์ดแสดงกราฟย้อนหลังจากข้อมูลล่าสุดไม่เกิน 120 จุด (ราว 30 นาที)
+โมดูลนี้ทำให้ดูย้อนหลัง **หลายวัน/สัปดาห์** และเห็นรูปแบบรายชั่วโมง
 
-## ต้องมีก่อน: ข้อมูลจริงถูกเก็บลง DB/Firebase
-- ฝั่ง PHP: ตาราง `readings` มีคอลัมน์ `ts` อยู่แล้ว (ดู `4-server-backup/db.sql`) → พร้อมทำ query ย้อนหลังได้เลย
-- ฝั่ง Firebase: ESP32 push ลง `buoy-01/history` อยู่แล้ว (ดู `3-firebase-primary/esp32-firebase-test.ino`)
+## ข้อมูลพร้อมแล้ว
+- Supabase: ตาราง `readings` มี `created_at` ทุกแถว และมี view **`readings_daily`** (ค่าเฉลี่ยรายวันของ 7 ค่า) อยู่แล้ว
+- PHP สำรอง: ตาราง `readings` มีคอลัมน์ `ts`
 
 ## แนวทางทำ
 
 ### A) กราฟเทรนด์รายวัน (ค่าเฉลี่ยต่อวัน)
-เพิ่ม API `api/daily.php` ที่ query ค่าเฉลี่ยรายวัน:
-```php
-<?php require __DIR__.'/../config.php';
-$st = db()->query(
-  "SELECT DATE(ts) d, AVG(do_val) do_avg, AVG(sal) sal_avg, AVG(turb) turb_avg
-   FROM readings WHERE ts >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-   GROUP BY DATE(ts) ORDER BY d");
-echo json_encode($st->fetchAll());
+แผนหลักดึงจาก view ได้ทันที:
+```js
+const { data } = await sb.from('readings_daily')
+  .select('day, do_avg, sal_avg, turb_avg, ph_avg').eq('device', 'buoy-01')
+  .order('day', { ascending: true }).limit(7);
 ```
-แล้วใน Dashboard วาดกราฟแท่ง/เส้น 7 วันล่าสุด (ใช้โครงวาด SVG เดิมได้)
+แผนสำรองเพิ่ม `api/daily.php`:
+```sql
+SELECT DATE(ts) d, AVG(do_val) do_avg, AVG(sal) sal_avg, AVG(turb) turb_avg
+FROM readings WHERE ts >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+GROUP BY DATE(ts) ORDER BY d;
+```
+แล้ววาดกราฟ 7 วันล่าสุด (ใช้โครงวาด SVG เดิมในแดชบอร์ดได้)
 
-### B) Heatmap รายชั่วโมง (ดูว่าน้ำแย่ช่วงเวลาไหนของวัน)
+### B) Heatmap รายชั่วโมง
 ตาราง 24 ชั่วโมง × 7 วัน ระบายสีตามค่า — เห็นแพทเทิร์น เช่น "DO ต่ำช่วงเช้ามืด"
-- query: `GROUP BY HOUR(ts), DAYOFWEEK(ts)`
-- ระบายสี: ใช้ **sequential ramp สีเดียว อ่อน→เข้ม** (เช่น ฟ้า) ตามค่า — อย่าใช้สีรุ้ง
-  (แนวทางสีตาม dataviz: ค่าน้อย=จางเข้าใกล้พื้น, ค่ามาก=เข้ม)
+- query: จัดกลุ่มตาม ชั่วโมง × วันในสัปดาห์
+- สี: ไล่ระดับสีเดียว อ่อน→เข้ม (ไม่ใช้สีรุ้ง) + มี legend และตารางข้อมูลดิบให้สลับดู
 
-## หมายเหตุการออกแบบสี (จาก dataviz skill)
-- **Heatmap = sequential 1 สี** ไล่อ่อน→เข้ม ห้ามรุ้ง
-- มี legend เสมอ + มี "ตารางดูข้อมูลดิบ" ให้กดสลับ (เข้าถึงง่าย)
-- ระวัง contrast กับพื้นหลังธีมทะเล
-
-## เก็บข้อมูลนานแค่ไหน?
-- ทุ่นตัวเดียวส่งทุก 5 นาที = ~288 แถว/วัน ~ แสนแถว/ปี → MySQL/Firebase สบายๆ
-- ถ้าอยากประหยัด: เก็บ raw 30 วัน + สรุปเป็นค่าเฉลี่ยรายวันเก็บยาว
+## ปริมาณข้อมูล
+ทุ่น 1 ตัวส่งทุก 15 วินาที ≈ 5,760 แถว/วัน ≈ 2.1 ล้านแถว/ปี
+- Supabase free tier มีพื้นที่ฐานข้อมูล 500 MB — ควรวางแผนเก็บ raw ระยะสั้น (เช่น 30–90 วัน) แล้วเก็บค่าเฉลี่ยรายวันระยะยาว

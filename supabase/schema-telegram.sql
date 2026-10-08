@@ -11,7 +11,7 @@ create table if not exists public.tg_subscribers (
 );
 
 create table if not exists public.alert_state (
-  key        text primary key,                 -- เช่น 'buoy-01:do', 'buoy-01:ph_low', 'buoy-01:turb'
+  key        text primary key,                 -- เช่น 'buoy-01:red:recreation:do_val' (ทุ่น:สถานะ:โหมด:ค่าที่ตก)
   last_sent  timestamptz
 );
 

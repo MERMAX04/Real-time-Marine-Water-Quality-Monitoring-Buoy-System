@@ -3,7 +3,8 @@
 read_sensor.py  —  อ่านค่าจริงจาก Online Multi-parameter Sensor (Modbus RTU)
                    พร้อมโหมด DEBUG: ตรวจทุกจุดที่ทำงานผิด + อธิบายว่าเพราะอะไร
 ------------------------------------------------------------------------------
-ตั้งค่าตามคู่มือ: 9600 8N1, address 0x01, register 0x2600 (22 regs = 44 bytes = 11 float)
+ตั้งค่าตามคู่มือ: 9600 8N1, address 0x01, register 0x2600 (22 regs = 44 bytes = 11 ช่อง float)
+แสดงเฉพาะ 7 ค่าที่ระบบใช้ (จากหัววัด 4 ชนิดที่ติดตั้ง: DO, TUR, CT/SAL, pH)
 ดูรายละเอียด protocol/การต่อสาย ที่ SENSOR-PROTOCOL.md
 
 วิธีใช้:
@@ -32,19 +33,15 @@ except ImportError:
 ADDR = 0x01
 BAUD = 9600
 
-# ลำดับค่าใน frame 0x2600 + ช่วงค่าที่สมเหตุสมผล (ใช้เตือนถ้าค่าเพี้ยน) ดู SENSOR-PROTOCOL.md
+# 7 ค่าที่ระบบใช้: (ตำแหน่งในเฟรม 0x2600, ชื่อ, หน่วย, ช่วงค่าที่สมเหตุสมผล) ดู SENSOR-PROTOCOL.md
 FIELDS = [
-    ("DO (ออกซิเจนละลายน้ำ)",  "mg/L",  (0, 20)),
-    ("Turbidity (ความขุ่น)",   "NTU",   (0, 1000)),
-    ("Conductivity",           "mS/cm", (0, 100)),
-    ("pH",                     "",      (0, 14)),
-    ("Temperature (อุณหภูมิ)", "C",     (-5, 60)),
-    ("ORP (ศักย์ออกซิเดชัน)",  "mV",    (-1999, 1999)),
-    ("Chlorophyll (คลอโรฟิลล์)","ug/L", (0, 500)),
-    ("OIW/BGA (น้ำมัน/สาหร่าย)","ppm|cells/mL", (0, 300000)),
-    ("Salinity (ความเค็ม)",    "ppt",   (0, 80)),
-    ("TDS",                    "",      (0, 100000)),
-    ("DO (%)",                 "%",     (0, 200)),
+    (0,  "DO (ออกซิเจนละลายน้ำ)",  "mg/L",  (0, 20)),
+    (10, "DO (%) อิ่มตัว",          "%",     (0, 200)),
+    (4,  "Temperature (อุณหภูมิ)", "C",     (-5, 60)),
+    (3,  "pH",                     "",      (0, 14)),
+    (8,  "Salinity (ความเค็ม)",    "ppt",   (0, 80)),
+    (2,  "Conductivity",           "mS/cm", (0, 100)),
+    (1,  "Turbidity (ความขุ่น)",   "NTU",   (0, 1000)),
 ]
 
 # ความหมาย Modbus exception code (ใช้ตอน sensor ตอบ error)
@@ -220,7 +217,10 @@ def decode_and_report(data):
 
     print("\n[STEP 6] ✅ ผลการอ่าน (ตรวจช่วงค่าให้ด้วย)\n" + "-"*58)
     warned = False
-    for (name, unit, (lo, hi)), v in zip(FIELDS, vals):
+    for idx, name, unit, (lo, hi) in FIELDS:
+        if idx >= len(vals):
+            print(f"  {name:<28} {'-':>12}  (เฟรมสั้น ไม่มีข้อมูลช่องนี้)"); warned = True; continue
+        v = vals[idx]
         flag = ""
         if not (lo <= v <= hi):
             flag = f"  ⚠️ นอกช่วงคาด ({lo}..{hi}) — probe อาจไม่ได้ต่อ/byte order เพี้ยน"
@@ -228,9 +228,8 @@ def decode_and_report(data):
         print(f"  {name:<28} {v:12.3f} {unit:<12}{flag}")
     print("-"*58)
     if warned:
-        print("  หมายเหตุ: ค่าที่นอกช่วงมาก มักเพราะ (1) probe นั้นไม่ได้เสียบ")
+        print("  หมายเหตุ: ค่าที่นอกช่วงมาก มักเพราะ (1) probe นั้นไม่ได้เสียบ/ยังไม่พร้อม")
         print("           (2) byte order เพี้ยน (ดู byte order test ข้างบน)")
-        print("           อ่าน register 0x0800 เพื่อดูว่า probe ตัวไหนต่ออยู่จริง")
     else:
         print("  ทุกค่าอยู่ในช่วงสมเหตุสมผล ✓ อ่านสำเร็จสมบูรณ์!")
 

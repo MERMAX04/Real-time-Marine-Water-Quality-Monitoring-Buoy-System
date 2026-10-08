@@ -1,4 +1,4 @@
-# 🔄 คู่มือสลับแหล่งข้อมูล (Supabase ↔ Server อาจารย์)
+# 🔄 คู่มือสลับแหล่งข้อมูล (Supabase ↔ Server PHP)
 
 เอกสารนี้บอก **ทุกจุดที่ต้องแก้** เวลาสลับระหว่างแผนหลัก (Supabase) กับแผนสำรอง (Server อาจารย์)
 
@@ -13,9 +13,9 @@
 
 ## ตารางสรุป: แต่ละโหมดใช้ไฟล์ไหน / แก้อะไร
 
-| | 🟢 Supabase (แผนหลัก) | 🟡 Server อาจารย์ (แผนสำรอง) | ⚪ Mock (ทดสอบจอ) |
+| | 🟢 Supabase (แผนหลัก) | 🟡 Server PHP (แผนสำรอง) | ⚪ Mock (ทดสอบจอ) |
 |---|---|---|---|
-| **โค้ด ESP32** | `3-supabase-primary/Full-Version/Full-Version.ino` | `4-server-backup/esp32-server-test.ino` | — (ไม่ต้องมีอุปกรณ์) |
+| **โค้ด ESP32** | `3-supabase-primary/Full-Version/Full-Version.ino` | `Full-Version.ino` (แก้ปลายทาง) · ทดสอบด้วย `4-server-backup/esp32-server-test.ino` | — (ไม่ต้องมีอุปกรณ์) |
 | **Dashboard `CONFIG.mode`** | `'supabase'` | `'server'` | `'mock'` |
 | **ต้องกรอกใน Dashboard** | `CONFIG.supabase = {url, anonKey}` | `CONFIG.apiBase = '...'` | — |
 | **ฝั่ง cloud ต้องเตรียม** | สร้าง Supabase project, รัน schema | ติดตั้ง PHP+MySQL, รัน db.sql | — |
@@ -43,7 +43,7 @@ const CONFIG = {
 ### จุดที่ 2 — ESP32: ใช้ไฟล์ `3-supabase-primary/Full-Version/Full-Version.ino`
 แก้ค่าซิม + host/key (host + anon key ใส่ไว้ให้แล้ว แก้เฉพาะถ้าเปลี่ยนโปรเจกต์):
 ```cpp
-const char APN[]   = "www.dtac.co.th";   // DTAC=www.dtac.co.th, AIS/True=internet
+const char APN[]   = "internet";         // AIS/True=internet, DTAC=www.dtac.co.th
 const char GUSER[] = "";
 const char GPASS[] = "";
 #define USE_FAKE 0                        // 0 = อ่าน sensor จริง, 1 = ค่าปลอมทดสอบ
@@ -58,7 +58,7 @@ const char GPASS[] = "";
 
 ---
 
-## 🟡 สลับไปใช้ SERVER อาจารย์ (แผนสำรอง)
+## 🟡 สลับไปใช้ SERVER PHP (แผนสำรอง)
 
 ### จุดที่ 1 — Dashboard: `2-dashboard/index.html`
 ```js
@@ -66,17 +66,25 @@ const CONFIG = {
   mode: 'server',                                        // ← (1) เปลี่ยนเป็น 'server'
   device: 'buoy-01',
   ...
-  apiBase: 'https://server-อาจารย์.ac.th/buoy/api',      // ← (2) URL โฟลเดอร์ api จริง
+  apiBase: 'https://<โดเมน>/buoy/api',      // ← (2) URL โฟลเดอร์ api จริง
 };
 ```
 > `apiBase` คือที่อยู่ของโฟลเดอร์ `api/` ที่อัปโหลดขึ้น server (ไม่ต้องมี `/` ปิดท้าย)
 
-### จุดที่ 2 — ESP32: ใช้ไฟล์ `4-server-backup/esp32-server-test.ino`
-แก้บรรทัดบนสุด:
+### จุดที่ 2 — ESP32
+**ทดสอบบนโต๊ะ (WiFi):** `4-server-backup/esp32-server-test.ino` แก้บรรทัดบนสุด:
 ```cpp
-#define SERVER_URL  "https://server-อาจารย์.ac.th/buoy/api/save.php"  // ← ชี้ที่ save.php
-#define API_KEY     "buoy-secret-2026"     // ← ต้องตรงกับ config.php
+#define SERVER_URL  "https://<โดเมน>/buoy/api/save.php"  // ← ชี้ที่ save.php
+#define API_KEY     "buoy-secret-2026"                  // ← ต้องตรงกับ config.php
 ```
+**ทุ่นจริง (4G):** ใช้ `Full-Version.ino` เดิม แก้ 2 จุดใน `loop()`:
+```cpp
+// (1) เพิ่ม key ไว้ต้น JSON (save.php ตรวจ API key)
+body += "\"key\":\"buoy-secret-2026\",";
+// (2) เปลี่ยนปลายทางจาก Supabase เป็น save.php
+int code = httpPost("https://<โดเมน>/buoy/api/save.php", body);
+```
+> save.php ตอบ `200 {"ok":true,...}` เมื่อสำเร็จ · header `apikey` ของ Supabase ที่ส่งติดไปไม่มีผลกับ PHP · แนะนำให้ server เปิด HTTPS
 
 ### จุดที่ 3 — Server: ตั้งค่า `4-server-backup/config.php`
 ```php
@@ -92,7 +100,7 @@ define('API_KEY', 'buoy-secret-2026');   // ← ต้องตรงกับ�
 - [ ] `config.php`: กรอก DB + ตั้ง API_KEY (+ Telegram token/secret ถ้าใช้)
 - [ ] อัปโหลดโฟลเดอร์ขึ้น server แล้ว (เช่น `public_html/buoy/`)
 - [ ] Dashboard: `mode = 'server'` และ `apiBase` ถูกต้อง
-- [ ] ESP32: `SERVER_URL` ชี้ที่ save.php, `API_KEY` ตรงกับ config.php
+- [ ] ESP32: ปลายทางชี้ที่ save.php และ `key` ตรงกับ `API_KEY` ใน config.php
 - [ ] server มี **public IP/โดเมน** ที่ ESP32 เข้าถึงได้ (สำคัญสุด!)
 
 ---
@@ -105,8 +113,8 @@ define('API_KEY', 'buoy-secret-2026');   // ← ต้องตรงกับ�
 | Dashboard ค่าไม่ขึ้น (server) | CORS หรือ apiBase ผิด | เปิด `apiBase/latest.php` ตรงๆใน browser ดูว่าได้ JSON ไหม |
 | ESP32 ส่งไม่ขึ้น (supabase) | error 715 (SNI) / anon key / APN | เปิด `enableSNI`, ดู Serial Monitor ต้องได้ HTTP 201 |
 | ESP32 ส่งไม่ขึ้น (server) | API_KEY ไม่ตรง / server เข้าไม่ถึง | ดู Serial Monitor, ลองเปิด save.php ใน browser |
-| ต่อผ่าน 4G ไม่ได้ แต่ WiFi ได้ | server เป็น LAN ภายใน (server อาจารย์) | ต้องมี public IP — Supabase ไม่มีปัญหานี้ |
-| เปลี่ยนโหมด 6 ประเภทไม่ได้ | ยังไม่ล็อกอิน admin / secret ไม่ตั้ง | เข้า `/admin` ล็อกอิน หรือใช้ `/mode` จาก chat_id ใน `TG_ADMINS` |
+| ต่อผ่าน 4G ไม่ได้ แต่ WiFi ได้ | server เป็น LAN ภายใน | ต้องมี public IP — Supabase ไม่มีปัญหานี้ |
+| เปลี่ยนโหมด 6 ประเภทไม่ได้ | ยังไม่ล็อกอิน admin / secret ไม่ตั้ง | เข้า `/admin` ล็อกอิน (เฉพาะแผน Supabase) หรือใช้ `/mode` จาก chat_id ใน `TG_ADMINS` (ทั้ง 2 แผน) |
 
 > 💡 **ข้อสังเกต:** `device` (เช่น `'buoy-01'`) ต้องเหมือนกันทั้ง 3 ที่ (ESP32, Dashboard, และข้อมูลใน cloud) เสมอ ไม่ว่าโหมดไหน
 > 📘 รายละเอียดระบบเต็ม → [5-extensions/06-system-documentation.md](5-extensions/06-system-documentation.md)

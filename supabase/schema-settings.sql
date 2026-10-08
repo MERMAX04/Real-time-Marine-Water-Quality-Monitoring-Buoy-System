@@ -1,9 +1,9 @@
 -- =========================================================================
 -- schema-settings.sql  —  ตั้งค่ากลางของระบบ (รันครั้งเดียวใน Supabase Studio > SQL Editor)
 --   เก็บ "โหมดมาตรฐานคุณภาพน้ำ" ที่เลือกอยู่ (1 ค่า ใช้ร่วมทั้งเว็บ + Telegram + แจ้งเตือน)
---   - เว็บ (anon key)  : อ่าน + เปลี่ยนโหมดผ่าน dropdown ได้
---   - Telegram /mode   : เปลี่ยนได้เฉพาะแอดมิน (เช็คจาก env TG_ADMINS ในโค้ด ไม่เกี่ยวกับ RLS)
---   - Edge Functions   : ใช้ service_role อ่านค่า (bypass RLS)
+--   - เว็บ (anon key)  : อ่านได้อย่างเดียว · เปลี่ยนโหมดผ่าน Edge Function 'admin' หลังล็อกอิน /admin
+--   - Telegram /mode   : เปลี่ยนได้เฉพาะแอดมิน (เช็คจาก env TG_ADMINS ในโค้ด)
+--   - Edge Functions   : ใช้ service_role อ่าน/เขียน (bypass RLS)
 -- =========================================================================
 
 create table if not exists public.app_settings (

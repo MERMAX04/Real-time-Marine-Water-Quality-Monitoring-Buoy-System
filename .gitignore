@@ -22,16 +22,12 @@ __pycache__/
 0-manuals/*.pdf
 
 # ===== โฟลเดอร์สำเนา/build ที่ Arduino IDE สร้าง =====
-# กัน build-copy อัตโนมัติขึ้น repo แต่ "เก็บ" โฟลเดอร์ firmware จริง + สำรอง
+# กัน build-copy อัตโนมัติขึ้น repo แต่ "เก็บ" โฟลเดอร์ firmware จริง
 3-supabase-primary/*/
-# ยกเว้น: firmware หลัก (ตัวที่ flash) + sketch ทดสอบ/สำรอง
+# ยกเว้น: firmware หลัก (ตัวที่ flash)
 !3-supabase-primary/Full-Version/
-!3-supabase-primary/Backup/
 
 # ===== Supabase CLI: ไฟล์ state เฉพาะเครื่อง (ไม่ใช่ source) — ห้าม commit =====
 supabase/.temp/
 supabase/.branches/
-
-# ===== โฟลเดอร์ demo/ทดสอบ UI (browser profile ~228MB — ห้าม commit) =====
-ui-preview/
 

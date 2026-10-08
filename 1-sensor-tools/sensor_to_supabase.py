@@ -86,12 +86,12 @@ def main():
     with ser:
         while True:
             t0 = time.time()
-            f = read_floats(ser, 0x2600, 22)   # 11 ค่าหลัก
+            f = read_floats(ser, 0x2600, 22)   # เฟรมรวม 11 ช่อง (ใช้ 7 ค่า)
             if not f or len(f) < 11:
                 print("  [อ่านไม่สำเร็จ] sensor ไม่ตอบ/เฟรมไม่ครบ — เช็คสาย/ไฟ แล้วลองใหม่")
             else:
                 # แผนที่ค่าจาก sensor -> คอลัมน์ Supabase (ส่งเฉพาะ probe ที่อ่านได้จริง)
-                # ลำดับ sensor: 0 DO,1 Turb,2 Cond,3 pH,4 Temp,5 ORP,6 Chl,7 OIW/BGA,8 Sal,9 TDS,10 DO%
+                # ตำแหน่งในเฟรมที่ใช้: 0 DO, 1 Turb, 2 Cond, 3 pH, 4 Temp, 8 Sal, 10 DO%
                 payload = {
                     "device": DEVICE,
                     "do_val": round(f[0], 2),
@@ -101,7 +101,6 @@ def main():
                     "temp":   round(f[4], 2),
                     "sal":    round(f[8], 2),
                     "do_pct": round(f[10], 2),
-                    # ORP/Chl/OIW-BGA = ไม่ได้ติดโพรบ · TDS = คำนวณจาก EC — ไม่ส่ง (ไม่มีคอลัมน์ในฐานข้อมูลแล้ว)
                 }
                 try:
                     code = post_supabase(payload)

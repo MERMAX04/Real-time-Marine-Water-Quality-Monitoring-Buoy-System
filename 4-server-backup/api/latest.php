@@ -14,9 +14,11 @@ try {
     if (!$row) { echo json_encode(['ok' => false, 'error' => 'no data']); exit; }
 
     $f = function ($v) { return is_null($v) || $v === '' ? null : (float)$v; };
+    $doPct = $f($row['do_pct']);
+    if ($doPct !== null && $doPct <= 2) $doPct *= 100;   // บางเซนเซอร์ส่งเป็นสัดส่วน (0.90) -> แปลงเป็น % (90)
     echo json_encode([
         'do'     => $f($row['do_val']),   // dashboard ใช้ key 'do'
-        'do_pct' => $f($row['do_pct']),
+        'do_pct' => $doPct,
         'temp'   => $f($row['temp']),
         'ph'     => $f($row['ph']),
         'sal'    => $f($row['sal']),
@@ -24,6 +26,7 @@ try {
         'turb'   => $f($row['turb']),
         'lat'    => $f($row['lat']),
         'lon'    => $f($row['lon']),
+        'sensor_ok' => (bool)$row['sensor_ok'],   // heartbeat: false = ESP ไลฟ์ แต่ sensor อ่านไม่ได้
         'ts'     => $row['ts'],
     ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {

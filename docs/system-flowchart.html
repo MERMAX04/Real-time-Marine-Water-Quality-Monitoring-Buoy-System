@@ -176,12 +176,12 @@
 
 <div class="wrap">
   <header>
-    <p class="eyebrow">Real-time Marine Water Quality Buoy · โปรเจคจบ</p>
+    <p class="eyebrow">Real-time Marine Water Quality Buoy · ปริญญานิพนธ์</p>
     <h1>แผนผังการทำงานของระบบ</h1>
     <p class="lede">เส้นทางข้อมูลจาก “หัววัดใต้น้ำ” ไปจนถึง “หน้าจอแสดงผลแบบเรียลไทม์” — ทุกครั้งที่เซนเซอร์อ่านค่า ข้อมูลจะไหลผ่าน 5 สเตจนี้ภายในไม่กี่วินาที</p>
     <div class="legend">
       <span><b></b> เส้นทางข้อมูล (ทำงานแล้ว)</span>
-      <span><b class="dashed"></b> ส่วนที่จะเปลี่ยนตอนลงภาคสนาม</span>
+      <span><b class="dashed"></b> ทางเลือก/เครื่องมือทดสอบ</span>
     </div>
   </header>
 
@@ -209,12 +209,12 @@
       <div>
         <h3 class="n-title">หน่วยอ่านค่า &amp; ส่งข้อมูล</h3>
         <p class="n-en">Edge Reader / Uplink</p>
-        <p class="n-body">ส่งคำสั่ง Modbus ไปอ่านทะเบียน 0x2600 (44 ไบต์ = 11 float) แล้วถอดค่า จับคู่เป็น 8 พารามิเตอร์ ก่อนยิงขึ้นคลาวด์</p>
+        <p class="n-body">ทุก 15 วินาที ส่งคำสั่ง Modbus อ่านทะเบียน 0x2600 (44 ไบต์ = 11 ช่อง float) ถอดค่าเป็น 7 พารามิเตอร์ แล้วส่งขึ้นคลาวด์ — อ่านเซนเซอร์ไม่ได้จะส่ง heartbeat (sensor_ok=false) แทน</p>
         <div class="modes">
-          <div class="mode"><span class="mchip now">ตอนนี้</span><span class="mtxt"><b>USB-RS485 → คอมพิวเตอร์</b> รันสคริปต์ Python (<code style="font-family:ui-monospace,Consolas,monospace">sensor_to_supabase.py</code>) — พิสูจน์ทั้งวงจรได้โดยยังไม่ต้องมี ESP32</span></div>
-          <div class="mode"><span class="mchip next">ภาคสนาม</span><span class="mtxt"><b>ESP32 + โมดูล 4G</b> (LilyGO A7670) จ่ายไฟด้วยแบต 12V + โซลาร์ — ลอยกลางทะเลส่งเองอัตโนมัติ <b>พร้อม GPS ในตัว</b> จับพิกัดทุ่น (lat/lon) ส่งไปด้วย</span></div>
+          <div class="mode"><span class="mchip now">บนทุ่น</span><span class="mtxt"><b>ESP32 + โมดูล 4G</b> (LilyGO T-Call-A7670) ผ่านโมดูล RS485-to-TTL · จ่ายไฟด้วยแบต 12V + โซลาร์ — ส่งเองอัตโนมัติ <b>พร้อม GPS ในตัว</b> จับพิกัดทุ่น (lat/lon) ส่งไปด้วย</span></div>
+          <div class="mode"><span class="mchip next">ทดสอบ</span><span class="mtxt"><b>USB-RS485 → คอมพิวเตอร์</b> รันสคริปต์ Python (<code style="font-family:ui-monospace,Consolas,monospace">sensor_to_supabase.py</code>) — ทดสอบเซนเซอร์และทั้งวงจรได้โดยไม่ต้องใช้ ESP32</span></div>
         </div>
-        <div class="tags"><code>read 44 bytes → 11 float</code><code>map → 8 params</code><code>GNSS/GPS → lat, lon</code><code>JSON</code></div>
+        <div class="tags"><code>read 44 bytes → 11 float</code><code>map → 7 params</code><code>heartbeat sensor_ok</code><code>GNSS/GPS → lat, lon</code><code>JSON</code></div>
       </div>
     </section>
 
@@ -228,14 +228,14 @@
         <div class="bhead"><span class="bicon">🗄️</span><span class="mchip main">แผนหลัก</span></div>
         <h3 class="n-title">Supabase</h3>
         <p class="n-en">PostgreSQL · Realtime</p>
-        <p class="n-body">เก็บทุกการวัดลงตาราง <span class="params">readings</span> (1 แถว = 1 ครั้ง) + คอลัมน์ <span class="params">lat/lon</span> เก็บพิกัด GPS · เปิด Realtime ให้หน้าจออัปเดตสด</p>
-        <div class="tags"><code>table: readings</code><code>RLS</code><code>Realtime</code><code>lat, lon</code></div>
+        <p class="n-body">เก็บทุกการวัดลงตาราง <span class="params">readings</span> (1 แถว = 1 ครั้ง) พร้อมพิกัด GPS · เปิด Realtime ให้หน้าจออัปเดตสด · Edge Functions ประเมินตาม <span class="params">6 โหมด</span>มาตรฐานน้ำทะเลไทย แจ้งเตือน + ตอบบอท Telegram</p>
+        <div class="tags"><code>table: readings</code><code>RLS</code><code>Realtime</code><code>Edge Functions</code><code>Telegram</code></div>
       </section>
       <section class="box backup" style="--c:var(--violet)">
         <div class="bhead"><span class="bicon">🖥️</span><span class="mchip bk">แผนสำรอง</span></div>
         <h3 class="n-title">Server อาจารย์</h3>
         <p class="n-en">PHP + MySQL</p>
-        <p class="n-body">โครงสร้างข้อมูลชุดเดียวกัน · ESP32 ยิง HTTP JSON เข้า API ของอาจารย์ · ใช้เมื่อ Supabase ล่ม/ต้องเก็บในเครื่องเอง</p>
+        <p class="n-body">โครงสร้างข้อมูลและตรรกะ 6 โหมดชุดเดียวกัน (รวม Telegram) · ESP32 ยิง HTTP JSON เข้า API · ใช้เมื่อไม่ใช้ Supabase/ต้องเก็บใน server ของหน่วยงาน</p>
         <div class="tags"><code>PHP API</code><code>MySQL</code><code>HTTP JSON</code><code>polling</code></div>
       </section>
     </div>
@@ -249,8 +249,8 @@
       <div>
         <h3 class="n-title">แดชบอร์ดแสดงผล</h3>
         <p class="n-en">Web Dashboard · Render</p>
-        <p class="n-body">สมัครรับข้อมูลสด พอมีแถวใหม่การ์ดอัปเดตทันที แสดง <span class="params">8 การ์ด</span> + กราฟย้อนหลัง + ตาราง/CSV และมี <span class="params">AI ช่วยวิเคราะห์</span></p>
-        <div class="tags"><code>ดัชนีคุณภาพน้ำ WQI</code><code>พยากรณ์แนวโน้ม</code><code>ตรวจค่าผิดปกติ</code><code>แจ้งเตือน</code><code>ตำแหน่งทุ่น (GPS)</code><code>สถานะ ออนไลน์/ค้าง</code></div>
+        <p class="n-body">สมัครรับข้อมูลสด พอมีแถวใหม่การ์ดอัปเดตทันที แสดง <span class="params">7 การ์ด</span> พร้อมสีสถานะตามโหมด + สถานะรวม + กราฟย้อนหลัง + ตาราง/CSV และ<span class="params">ระบบวิเคราะห์ข้อมูล</span></p>
+        <div class="tags"><code>6 โหมดมาตรฐาน</code><code>ดัชนีคุณภาพน้ำ WQI</code><code>พยากรณ์แนวโน้ม</code><code>ตรวจค่าผิดปกติ</code><code>Google Map (GPS)</code><code>สถานะ ออนไลน์/ค้าง</code><code>admin / user</code></div>
       </div>
     </section>
 
@@ -263,7 +263,7 @@
       <div>
         <h3 class="n-title">ผู้ใช้งานเฝ้าดูคุณภาพน้ำ</h3>
         <p class="n-en">Monitoring</p>
-        <p class="n-body">ดูค่าคุณภาพน้ำทะเลแบบเรียลไทม์ได้จากทุกที่ เห็นแนวโน้ม รับการแจ้งเตือนเมื่อค่าผิดปกติ — ใช้ตัดสินใจ/เฝ้าระวังสิ่งแวดล้อมชายฝั่ง</p>
+        <p class="n-body">ดูค่าคุณภาพน้ำทะเลแบบเรียลไทม์ได้จากทุกที่ผ่านเว็บและ Telegram (/status /swim) รับแจ้งเตือนเมื่อสถานะรวมเป็น "แดง" ตามโหมด — ใช้ตัดสินใจ/เฝ้าระวังสิ่งแวดล้อมชายฝั่ง</p>
       </div>
     </section>
 
@@ -271,9 +271,9 @@
 
   <div class="foot">
     <h4>หมายเหตุการอ่านแผนผัง</h4>
-    <div class="row"><span class="k">สเตจ 2</span><span>คือหัวใจที่กำลังพัฒนา — “ตอนนี้” ใช้คอมพิวเตอร์อ่านผ่าน USB เพื่อทดสอบ ส่วน “ภาคสนาม” จะย้ายไป ESP32 + 4G โดย Supabase และ Dashboard ไม่ต้องแก้อะไรเลย</span></div>
-    <div class="row"><span class="k">GPS</span><span>โมดูล 4G รุ่น A7670 มี GPS ในตัว จับพิกัดทุ่น (lat/lon) ส่งไปเก็บคู่กับค่าน้ำ แล้วแสดงเป็นการ์ด “ตำแหน่งทุ่น” บน Dashboard — รู้ว่าค่านี้มาจากจุดไหนในทะเล</span></div>
-    <div class="row"><span class="k">แผนสำรอง</span><span>ถ้า Supabase มีปัญหา สลับ <code style="font-family:ui-monospace,Consolas,monospace">CONFIG.mode = server</code> ให้ Dashboard ไปอ่านจาก Server อาจารย์ (PHP+MySQL) ที่เก็บข้อมูลชุดเดียวกัน — ไม่ต้องแก้โค้ดส่วนอื่น</span></div>
+    <div class="row"><span class="k">สเตจ 2</span><span>บนทุ่นใช้ ESP32 + 4G ส่งข้อมูลเองทุก 15 วินาที · สคริปต์บนคอมพิวเตอร์ (USB-RS485) ใช้ทดสอบเซนเซอร์โดยไม่ต้องแก้ Supabase หรือ Dashboard</span></div>
+    <div class="row"><span class="k">GPS</span><span>โมดูล 4G รุ่น A7670 มี GPS ในตัว จับพิกัดทุ่น (lat/lon) ส่งไปเก็บคู่กับค่าน้ำ แล้วแสดงบน Google Map ในแดชบอร์ด (ไม่มีพิกัด = แจ้ง "ยังไม่พบพิกัด GPS") — รู้ว่าค่านี้มาจากจุดไหนในทะเล</span></div>
+    <div class="row"><span class="k">แผนสำรอง</span><span>ถ้า Supabase มีปัญหา สลับ <code style="font-family:ui-monospace,Consolas,monospace">CONFIG.mode = server</code> ให้ Dashboard ไปอ่านจาก Server (PHP+MySQL) ที่เก็บข้อมูลชุดเดียวกัน</span></div>
     <div class="row"><span class="k">เรียลไทม์</span><span>จุดที่วิ่งบนเส้นท่อแทน “ข้อมูล 1 ชุด” ที่ไหลจากเซนเซอร์ถึงหน้าจอ ใช้เวลารวมเพียงไม่กี่วินาที</span></div>
   </div>
 

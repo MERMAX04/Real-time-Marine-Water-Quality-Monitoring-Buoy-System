@@ -37,16 +37,20 @@ void setup() {
 float rnd(float lo, float hi) { return lo + (random(0, 1000) / 1000.0) * (hi - lo); }
 
 void loop() {
-  if (WiFi.status() == WL_CONNECTED && (millis() - lastSend > 5000)) {   // ทุก 5 วิ
+  if (WiFi.status() == WL_CONNECTED && (millis() - lastSend > 15000)) {   // ทุก 15 วิ (เท่าทุ่นจริง)
     lastSend = millis();
 
     // สร้าง URL แบบ GET query (ง่ายและ save.php รองรับ)
+    // ส่งครบ 7 ค่าเหมือนทุ่นจริง (DO, DO%, อุณหภูมิ, pH, ความเค็ม, EC, ความขุ่น)
     String url = String(SERVER_URL) + "?key=" + API_KEY + "&device=" + DEVICE_ID
-      + "&do="    + String(rnd(4, 9), 2)
-      + "&sal="   + String(rnd(28, 35), 2)
-      + "&turb="  + String(rnd(1, 25), 2)
-      + "&ph="    + String(rnd(7.5, 8.5), 2)
-      + "&cond="  + String(rnd(40, 55), 2);
+      + "&sensor_ok=1"
+      + "&do_val=" + String(rnd(4, 9), 2)
+      + "&do_pct=" + String(rnd(70, 120), 1)
+      + "&temp="   + String(rnd(26, 31), 2)
+      + "&ph="     + String(rnd(7.5, 8.5), 2)
+      + "&sal="    + String(rnd(28, 35), 2)
+      + "&cond="   + String(rnd(40, 55), 2)
+      + "&turb="   + String(rnd(1, 25), 2);
 
     HTTPClient http;
     http.begin(url);                 // ถ้าเป็น https จะใช้ TLS ให้อัตโนมัติ

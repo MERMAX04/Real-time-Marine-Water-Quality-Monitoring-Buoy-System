@@ -22,7 +22,7 @@ try {
             'turb'  => is_null($r['turb'])?null:(float)$r['turb'],
             'ph'    => is_null($r['ph'])?null:(float)$r['ph'],
             'cond'  => is_null($r['cond'])?null:(float)$r['cond'],
-            'do_pct'=> is_null($r['do_pct'])?null:(float)$r['do_pct'],
+            'do_pct'=> is_null($r['do_pct'])?null:((float)$r['do_pct'] <= 2 ? (float)$r['do_pct']*100 : (float)$r['do_pct']),   // สัดส่วน (0.90) -> %
             'temp'  => is_null($r['temp'])?null:(float)$r['temp'],
         ];
     }, $rows);

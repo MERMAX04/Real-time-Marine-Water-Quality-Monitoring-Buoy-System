@@ -1,52 +1,64 @@
 # 4-server-backup — แผนสำรอง (Self-hosted PHP + MySQL)
 
-ใช้เมื่ออาจารย์ให้ใช้ server ของท่าน (แทน Firebase) — เส้นทางเหมือนกัน แค่เปลี่ยน cloud
+ใช้เมื่อไม่ใช้ Supabase (เช่น ต้องใช้ server ของมหาวิทยาลัย/อาจารย์) — เส้นทางข้อมูลและตรรกะเหมือนแผนหลัก แค่เปลี่ยนที่เก็บข้อมูล
 
 ```
-ESP32 --POST--> save.php --> MySQL --> latest.php/history.php --> Dashboard
+ESP32 --HTTP(S) POST--> api/save.php --> MySQL --> api/latest.php --> Dashboard (CONFIG.mode='server')
+                             └─ ประเมินตามโหมด → แจ้งเตือน Telegram
+Telegram --webhook--> api/tg-webhook.php (/status /swim /mode /start /stop /help)
 ```
 
-## ⚠️ ต้องถามอาจารย์ก่อน
-1. Server มี **PHP + MySQL** ไหม (ถ้ามี ชุดนี้ใช้ได้เลย)
-2. มี **public IP / โดเมน** ไหม ← สำคัญสุด ESP32 ฝั่ง 4G ต้องเข้าถึงจากภายนอกได้
-3. ขอ user/pass ของ MySQL และที่วางไฟล์ (cPanel/FTP/SSH)
-4. เปิด HTTPS ได้ไหม
+## เทียบความสามารถกับแผนหลัก (Supabase)
+| ความสามารถ | แผนหลัก (Supabase) | แผนสำรอง (PHP) |
+|---|---|---|
+| รับค่า 7 ค่า + GPS | ✅ | ✅ `save.php` |
+| heartbeat `sensor_ok` | ✅ | ✅ `save.php` เก็บ / `latest.php` ส่งคืน |
+| ประเมิน 6 โหมด (Model A) | ✅ `water-eval.ts` | ✅ `wm_eval()` ใน `lib/telegram.php` (ตรรกะเดียวกัน, config ไฟล์เดียวกัน) |
+| แจ้งเตือนอัตโนมัติ + cooldown 30 นาที | ✅ | ✅ `tg_check_and_alert()` |
+| คำสั่ง Telegram /status /swim /mode /start /stop /help | ✅ | ✅ |
+| เปลี่ยนโหมดผ่าน Telegram (เฉพาะแอดมิน) | ✅ | ✅ `TG_ADMINS` |
+| แดชบอร์ดแสดงค่า 7 ค่า + สถานะสี + WQI | ✅ | ✅ |
+| เปลี่ยนโหมดผ่านเว็บ `/admin` | ✅ Edge Function `admin` | ❌ ไม่มี — เปลี่ยนผ่าน Telegram `/mode` แทน |
+| สถานะทุ่น online/offline บนเว็บ | ✅ realtime | ✅ polling ทุก 15 วิ |
+| แผนที่ GPS + ป้าย "sensor ขัดข้อง" บนเว็บ | ✅ | ⚠️ API ส่ง `lat/lon/sensor_ok` ให้แล้ว แต่หน้าเว็บโหมด server ยังไม่นำไปแสดง |
+
+## ต้องเตรียมฝั่ง server
+1. มี **PHP 8 + MySQL**
+2. มี **public IP / โดเมน** (สำคัญสุด — ESP32 ผ่าน 4G ต้องเข้าถึงได้จากภายนอก)
+3. user/pass ของ MySQL และที่วางไฟล์ (cPanel/FTP/SSH) · แนะนำเปิด HTTPS
 
 ## ติดตั้ง
-1. รัน `db.sql` ใน phpMyAdmin (สร้าง database + ตาราง)
-2. แก้ `config.php` ใส่ข้อมูล DB + เปลี่ยน API_KEY
+1. รัน `db.sql` ใน phpMyAdmin (สร้าง database `buoy` + ตาราง `readings`, `tg_subscribers`, `alert_state`, `app_settings`)
+2. แก้ `config.php`: ข้อมูล DB, `API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TG_ADMINS`
 3. อัปโหลดทั้งโฟลเดอร์ขึ้น server (เช่น `public_html/buoy/`)
-
-## ทดสอบ (พิมพ์ใน browser)
-```
-https://server.ac.th/buoy/api/save.php?key=buoy-secret-2026&do=6.2&sal=32&turb=8&ph=8.1&cond=50
-```
-ได้ `{"ok":true,"id":1}` = สำเร็จ
-
-## สลับ Dashboard มาใช้ server
-ใน `2-dashboard/index.html`: ตั้ง `CONFIG.mode = 'server'` และ `apiBase` เป็น URL จริง
-
-## 📲 Telegram (แจ้งเตือน + บอท) — ทำที่ server นี้แทน ESP32
-เหมือนฝั่ง Supabase: ทุ่นแค่ POST ค่า → server เช็คเกณฑ์เองแล้วเตือน + ตอบคำสั่งแชท
-1. ใส่ `TELEGRAM_BOT_TOKEN` (จาก @BotFather) ใน `config.php`
-2. **แจ้งเตือนวิกฤต**: ทำงานอัตโนมัติใน `api/save.php` (เรียก `tg_check_and_alert()` หลังบันทึกทุกแถว, cooldown 30 นาที)
-3. **โหมด 6 ประเภท**: รันตาราง `app_settings` (มีใน `db.sql`) + ตั้ง `TG_ADMINS` (chat_id) ใน `config.php` เพื่อใช้ `/mode`
-4. **คำสั่งแชท** (/swim /status /mode /start /stop /help): ตั้ง webhook ชี้มาที่ `api/tg-webhook.php`
+4. ตั้ง webhook ของบอท:
    ```
-   https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<โดเมน>/buoy/api/tg-webhook.php&secret_token=buoy-hook-2026
+   https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://<โดเมน>/buoy/api/tg-webhook.php&secret_token=<TELEGRAM_WEBHOOK_SECRET>
    ```
-   (`secret_token` ต้องตรงกับ `TELEGRAM_WEBHOOK_SECRET` ใน `config.php`)
-4. ทดสอบ: ทักบอท `/start` → ได้ข้อความต้อนรับ · `/status` → ค่าล่าสุด · ยิง save.php ค่าที่เข้าเกณฑ์ → ได้แจ้งเตือน
 
-> เกณฑ์ 6 โหมดแก้ได้ที่ `lib/water-modes.json` · cooldown ที่ `TG_COOLDOWN_SEC` ใน `lib/telegram.php` — ไม่ต้อง flash ทุ่น
+## ทดสอบ
+พิมพ์ใน browser (GET):
+```
+https://<โดเมน>/buoy/api/save.php?key=buoy-secret-2026&do_val=6.2&do_pct=90&temp=30&ph=8.1&sal=32&cond=50&turb=8
+```
+ได้ `{"ok":true,"id":1}` = บันทึกสำเร็จ · เปิด `api/latest.php` ต้องเห็นค่าที่เพิ่งส่ง
+หรือ flash `esp32-server-test.ino` (ส่งค่าจำลองครบ 7 ค่าผ่าน WiFi ทุก 15 วิ)
+
+## สลับระบบมาใช้ server
+- **Dashboard:** `2-dashboard/index.html` ตั้ง `CONFIG.mode = 'server'` และ `CONFIG.apiBase` = URL โฟลเดอร์ `api`
+- **Firmware ทุ่น:** เปลี่ยนปลายทางใน `Full-Version.ino` จาก Supabase เป็น `save.php` และเพิ่ม `"key"` ใน JSON (รายละเอียดใน [`../SWITCHING-GUIDE.md`](../SWITCHING-GUIDE.md))
+
+> เกณฑ์ 6 โหมดแก้ได้ที่ `lib/water-modes.json` (ต้องตรงกับอีก 2 สำเนาใน `supabase/functions/_shared/` และ `2-dashboard/`) · cooldown แก้ที่ `TG_COOLDOWN_SEC` ใน `lib/telegram.php`
 
 ## ไฟล์
 | ไฟล์ | หน้าที่ |
 |------|---------|
-| `config.php` | ตั้งค่า DB + API key + Telegram token/secret |
-| `db.sql` | สร้างฐานข้อมูล (readings ครบทุกคอลัมน์ + tg_subscribers + alert_state) |
-| `api/save.php` | ESP32 ส่งข้อมูลมาที่นี่ + เช็คเกณฑ์เตือน |
-| `api/latest.php` | Dashboard ดึงค่าล่าสุด |
-| `api/history.php` | ดึงค่าย้อนหลัง |
-| `api/tg-webhook.php` | รับคำสั่งแชท Telegram (/start /status /stop /help) |
-| `lib/telegram.php` | ส่งข้อความ + เกณฑ์เตือน + cooldown + /status (ใช้ร่วม) |
+| `config.php` | ตั้งค่า DB + API key + Telegram token/secret/admins + ฟังก์ชันเชื่อม DB |
+| `db.sql` | สร้างฐานข้อมูล (readings 7 ค่า + sensor_ok + GPS, tg_subscribers, alert_state, app_settings) |
+| `api/save.php` | รับค่าจาก ESP32 (POST JSON หรือ GET) → บันทึก → ประเมิน → แจ้งเตือน |
+| `api/latest.php` | ค่าล่าสุด 1 แถว ให้ Dashboard |
+| `api/history.php` | ค่าย้อนหลัง (`?limit=` สูงสุด 500) |
+| `api/tg-webhook.php` | รับคำสั่งแชท Telegram |
+| `lib/telegram.php` | ตรรกะประเมิน 6 โหมด + จัดรูปข้อความ + ส่ง Telegram + cooldown |
+| `lib/water-modes.json` | เกณฑ์ 6 โหมด (config กลาง) |
+| `esp32-server-test.ino` | sketch ทดสอบส่งค่าจำลองเข้า `save.php` ผ่าน WiFi |
