@@ -618,6 +618,7 @@ function reconcileWQI(wqiObj){
   if(!MODE_CFG) return;
   const d={}; PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) d[p.key]=a.at(-1); });
   const s=evalWaterJS(d);
+  if(s.overall==='unknown'){ wqiObj.unknown=true; wqiObj.cat='ประเมินไม่ได้'; wqiObj.cls='nodata'; return; }  // sal<1 / sensor เสีย -> WQI ไม่มีความหมาย
   let ceil=100;
   if(s.overall==='red') ceil=39;         // อันตราย -> ไม่เกิน "แย่"
   else if(s.overall==='orange') ceil=59; // เฝ้าระวัง -> ไม่เกิน "ปานกลาง"
@@ -629,6 +630,8 @@ function reconcileWQI(wqiObj){
 
 /* ---------- AI: สร้างประโยคสรุปภาษาไทย ---------- */
 function buildInsight(wqiObj){
+  if(wqiObj.unknown)
+    return `ยัง<b>ประเมินไม่ได้</b> — ค่าความเค็มต่ำผิดปกติ (ทุ่นอาจไม่ได้อยู่ในน้ำทะเล หรือเซนเซอร์อ่านไม่ได้/เฟรมข้อมูลเสีย) ตรวจการต่อเซนเซอร์และการจ่ายไฟของทุ่น`;
   const worst = PARAMS.map(p=>({p,si:wqiObj.parts[p.key]??100})).sort((a,b)=>a.si-b.si)[0];
   const risks = PARAMS.map(p=>({p,r:timeToRisk(p)})).filter(x=>x.r);
   const events = detectEvents();
@@ -808,7 +811,7 @@ function drawChart(){
 }
 
 /* เกจ WQI ครึ่งวงกลม (semicircle) พร้อมส่วนโค้งไล่ระดับ */
-const STATUS_HEX={good:'#0ca30c',warning:'#fab219',serious:'#ec835a',critical:'#d03b3b'};
+const STATUS_HEX={good:'#0ca30c',warning:'#fab219',serious:'#ec835a',critical:'#d03b3b',nodata:'#6b8aa3'};
 function polar(cx,cy,R,deg){const a=(deg-180)*Math.PI/180;return[cx+R*Math.cos(a),cy+R*Math.sin(a)];}
 function arcPath(cx,cy,R,d0,d1){const[x0,y0]=polar(cx,cy,R,d0),[x1,y1]=polar(cx,cy,R,d1);
   const large=(d1-d0)>180?1:0;return`M${x0.toFixed(1)},${y0.toFixed(1)} A${R},${R} 0 ${large} 1 ${x1.toFixed(1)},${y1.toFixed(1)}`;}
@@ -1069,9 +1072,10 @@ async function tick(){
   renderSwim();                       // ธงสถานะการลงเล่นน้ำ (Blue Flag)
   const wqiObj=computeWQI();
   reconcileWQI(wqiObj);               // จำกัดเพดานดัชนีตามสถานะรวมของโหมด (กันดัชนีขัดแย้งกับการแจ้งเตือน)
-  drawGauge(wqiObj.wqi,wqiObj.cls);
-  document.getElementById('wqi-num').textContent=wqiObj.wqi;
-  document.getElementById('wqi-mini').textContent=wqiObj.wqi;
+  const wqiShow = wqiObj.unknown ? '—' : wqiObj.wqi;   // ประเมินไม่ได้ (sal<1/sensor เสีย) -> ไม่โชว์เลขวิกฤตหลอก
+  drawGauge(wqiObj.unknown?0:wqiObj.wqi, wqiObj.cls);
+  document.getElementById('wqi-num').textContent=wqiShow;
+  document.getElementById('wqi-mini').textContent=wqiShow;
   document.getElementById('wqi-mini').style.color=STATUS_HEX[wqiObj.cls];
   const catEl=document.getElementById('wqi-cat'); catEl.textContent=wqiObj.cat; catEl.style.color=STATUS_HEX[wqiObj.cls];
   drawContrib(wqiObj.parts);
