@@ -104,14 +104,18 @@ def main():
         # 2b) ค่าคาลิเบรต K/B (0x1100 + offset, 4 regs = K float + B float, DCBA)
         #     ถ้า K = 0 เซนเซอร์จะส่ง 0 เสมอแม้มีโพรบ -> ต้องเช็ค
         print("\n[2b] ค่าคาลิเบรต K/B (ถ้า K = 0 จะได้ค่า 0 ตลอด แม้มีโพรบ)")
-        for off, name in ((0x05, "ORP"), (0x06, "CHL"), (0x07, "OIW/BGA")):
+        # คู่มือขัดกันเอง: ตารางบอก 4 regs (K+B 8 ไบต์) แต่ตัวอย่างคำสั่งใช้ 2 regs -> ลอง 4 ก่อน ไม่ได้ค่อย 2
+        for off, name in ((0x01, "DO (เทียบ)"), (0x05, "ORP"), (0x06, "CHL"), (0x07, "OIW/BGA")):
             st, p = query(ser, 0x1100 + off, 4)
-            if st == "ok" and len(p) >= 8:
-                k, b = f32(p, 0), f32(p, 4)
+            if not (st == "ok" and len(p) >= 8):
+                st, p = query(ser, 0x1100 + off, 2)
+            if st == "ok" and len(p) >= 4:
+                k = f32(p, 0)
+                b = f"{f32(p, 4):.4f}" if len(p) >= 8 else "(ไม่ได้อ่าน)"
                 warn = "  ⚠️ K = 0 → ค่าที่อ่านจะเป็น 0 เสมอ!" if k == 0 else ""
-                print(f"    {name:<8} 0x{0x1100+off:04X}: K = {k:.4f} · B = {b:.4f}{warn}")
+                print(f"    {name:<10} 0x{0x1100+off:04X}: K = {k:.4f} · B = {b}{warn}")
             else:
-                print(f"    {name:<8} 0x{0x1100+off:04X}: {st}  {hexs(p)}")
+                print(f"    {name:<10} 0x{0x1100+off:04X}: {st}  {hexs(p)}")
 
         # 3+4) sampling
         print(f"\n[3] อ่านซ้ำ {ROUNDS} รอบ (ห่าง 2 วิ) — เฟรมรวม + register แยก")
