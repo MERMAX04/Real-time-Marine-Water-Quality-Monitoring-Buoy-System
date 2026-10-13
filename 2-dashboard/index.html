@@ -223,8 +223,25 @@
   .tab.active{background:var(--tc,var(--accent));color:#04263a;border-color:var(--tc,var(--accent));font-weight:700}
   .tab.active::before{content:'✓ '}
   .tab-all{border-style:dashed}
-  .chart-hint{font-size:11px;color:var(--muted);margin:0 2px 4px}
-  .tbar-left{display:flex;gap:12px;flex-wrap:wrap}
+  .hist-row{margin:10px 0 2px}
+  .hist-row .hist-lbl{display:block;margin-bottom:6px}
+  .hist-lbl{font-size:11.5px;color:var(--muted);font-weight:700;white-space:nowrap}
+  .hist-lbl em{font-style:normal;font-weight:400}
+  .tbar-left{display:flex;gap:10px 22px;flex-wrap:wrap;align-items:center}
+  .ctrl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--glass-brd);border-radius:9px;overflow:hidden}
+  .seg .rbtn{border:0;border-radius:0;padding:6px 11px}
+  .seg .rbtn+.rbtn{border-left:1px solid var(--glass-brd)}
+  .seg .rbtn.active{border-color:var(--glass-brd)}
+  .span-info{font-size:11px;color:var(--muted)}
+  .csv-box{width:min(460px,92vw)}
+  .csv-sec{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;color:#dcefff;margin-top:4px}
+  .csv-sec a{font-weight:400;font-size:12px;color:var(--accent2);cursor:pointer}
+  .csv-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px 14px;font-size:13px}
+  .csv-grid label,.csv-range label{display:flex;align-items:center;gap:7px;cursor:pointer}
+  .csv-grid input,.csv-range input{accent-color:var(--accent2);cursor:pointer;width:15px;height:15px}
+  .csv-range{display:flex;flex-direction:column;gap:6px;font-size:13px}
+  .csv-range small{color:var(--muted)}
   .chart-wrap{position:relative}
   .chart-tip{position:absolute;top:8px;pointer-events:none;display:none;z-index:5;background:rgba(6,20,34,.95);
     border:1px solid var(--glass-brd);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.35)}
@@ -384,16 +401,20 @@
   <div class="glass panel" style="margin-bottom:22px">
     <h2>📈 ประวัติย้อนหลัง</h2>
     <div class="sub">แนวโน้มค่าที่วัดได้</div>
-    <div class="chart-hint">แตะเลือกได้หลายค่าเพื่อดูแนวโน้มเทียบกัน (เช่น DO คู่กับ pH) · ชี้/แตะบนกราฟเพื่อดูค่าจริง</div>
-    <div class="chart-tabs" id="tabs"></div>
+    <div class="hist-row">
+      <span class="hist-lbl">ค่าที่แสดง <em>(เลือกได้หลายค่าเพื่อเทียบแนวโน้ม)</em></span>
+      <div class="chart-tabs" id="tabs"></div>
+    </div>
     <div class="toolbar">
-      <div class="tbar-left"><div class="ranges" id="ranges"></div><div class="ranges" id="ctypes"></div></div>
+      <div class="tbar-left">
+        <div class="ctrl"><span class="hist-lbl">ช่วงข้อมูล</span><div class="seg" id="ranges"></div><span class="span-info" id="range-span"></span></div>
+        <div class="ctrl"><span class="hist-lbl">รูปแบบกราฟ</span><div class="seg" id="ctypes"></div></div>
+      </div>
       <div style="display:flex;gap:7px">
         <button class="obtn" id="toggleTbl">📋 ตาราง</button>
-        <button class="obtn" id="exportCsv">⬇️ CSV</button>
+        <button class="obtn" id="exportCsv">⬇️ ดาวน์โหลด CSV</button>
       </div>
     </div>
-    <div class="export-pick" id="export-pick"></div>
     <div class="chart-wrap">
       <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
       <div class="chart-tip" id="chart-tip"></div>
@@ -427,6 +448,26 @@
     โปรเจคจบ · แหล่งข้อมูล: <b>Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
     ระบบวิเคราะห์ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
+</div>
+
+<!-- Modal ดาวน์โหลด CSV (เปิดจากปุ่ม "ดาวน์โหลด CSV") -->
+<div id="csv-modal" class="login-overlay">
+  <div class="login-box glass csv-box">
+    <h3>⬇️ ดาวน์โหลดข้อมูล CSV</h3>
+    <div class="login-sub">เลือกค่าและช่วงข้อมูลที่ต้องการ แล้วกดดาวน์โหลด</div>
+    <div class="csv-sec">ค่าที่จะดาวน์โหลด <span><a id="csv-all">เลือกทั้งหมด</a> · <a id="csv-none">ล้าง</a></span></div>
+    <div class="csv-grid" id="csv-params"></div>
+    <div class="csv-sec">ช่วงข้อมูล</div>
+    <div class="csv-range">
+      <label><input type="radio" name="csv-range" value="view" checked>ตามที่แสดงในกราฟ <small id="csv-nview"></small></label>
+      <label><input type="radio" name="csv-range" value="all">ทั้งหมดที่โหลดไว้ <small id="csv-nall"></small></label>
+    </div>
+    <div id="csv-err" class="login-err"></div>
+    <div class="login-actions">
+      <button id="csv-cancel" class="obtn">ยกเลิก</button>
+      <button id="csv-go" class="obtn primary">ดาวน์โหลด</button>
+    </div>
+  </div>
 </div>
 
 <!-- Modal ล็อกอินแอดมิน (เปิดเมื่อเข้า /admin) -->
@@ -777,7 +818,7 @@ function buildCards(){
     syncTabs(); saveChartPref(); drawChart();});
   syncTabs();
   // ชนิดกราฟ
-  document.getElementById('ctypes').innerHTML = [['line','📈 เส้น'],['area','🏔️ พื้นที่'],['bar','📊 แท่ง'],['scatter','⚬ จุด']]
+  document.getElementById('ctypes').innerHTML = [['line','เส้น'],['area','พื้นที่'],['bar','แท่ง'],['scatter','จุด']]
     .map(([t,l])=>`<button class="rbtn ${t===chartType?'active':''}" data-t="${t}">${l}</button>`).join('');
   document.querySelectorAll('#ctypes .rbtn').forEach(b=>b.onclick=()=>{chartType=b.dataset.t;
     document.querySelectorAll('#ctypes .rbtn').forEach(x=>x.classList.toggle('active',x.dataset.t===chartType));
@@ -788,14 +829,15 @@ function buildCards(){
   svg.addEventListener('mousemove',onPoint); svg.addEventListener('touchstart',onPoint,{passive:true});
   svg.addEventListener('touchmove',onPoint,{passive:true});
   svg.addEventListener('mouseleave',chartHoverOff);
-  document.getElementById('ranges').innerHTML = [[30,'ล่าสุด'],[60,'กลาง'],[120,'ทั้งหมด']]
-    .map(([n,l])=>`<button class="rbtn ${n===rangeN?'active':''}" data-n="${n}">${l}</button>`).join('');
+  // ช่วงข้อมูล = จำนวนค่าที่วัดล่าสุด (ทุ่นส่งทุก ~15 วิ) — ช่วงเวลาจริงแสดงข้างปุ่ม (#range-span)
+  document.getElementById('ranges').innerHTML = [[30,'30 ค่าล่าสุด','≈ 7.5 นาที ถ้าทุ่นส่งต่อเนื่อง'],[60,'60 ค่าล่าสุด','≈ 15 นาที ถ้าทุ่นส่งต่อเนื่อง'],[HISTORY_LEN,'ทั้งหมด','ทุกค่าที่โหลดไว้ (สูงสุด '+HISTORY_LEN+' ค่า)']]
+    .map(([n,l,t])=>`<button class="rbtn ${n===rangeN?'active':''}" data-n="${n}" title="${t}">${l}</button>`).join('');
   document.querySelectorAll('#ranges .rbtn').forEach(b=>b.onclick=()=>{rangeN=+b.dataset.n;
     document.querySelectorAll('#ranges .rbtn').forEach(x=>x.classList.toggle('active',+x.dataset.n===rangeN));drawChart();renderTable();});
   document.getElementById('toggleTbl').onclick=()=>{showTable=!showTable;
     document.getElementById('tblwrap').style.display=showTable?'block':'none';
     document.getElementById('chart').style.display=showTable?'none':'block';renderTable();};
-  document.getElementById('exportCsv').onclick=exportCSV;
+  document.getElementById('exportCsv').onclick=openCsvModal;
 }
 
 /* จัดรูปแบบตัวเลขให้เหมาะกับแต่ละค่า (หลักพัน=ใส่ comma เช่น cells/mL) */
@@ -832,6 +874,8 @@ function drawChart(){
   const n=Math.min(rangeN, Math.max(...sel.map(p=>history[p.key].length)));
   const pad=(a)=>{ const t=a.slice(-n); return Array(n-t.length).fill(null).concat(t); };   // ชิดขวา = ล่าสุด
   const tl=pad(times);
+  const t0=tl.find(Boolean), t1=tl.at(-1);
+  document.getElementById('range-span').textContent = t0 ? `${n} ค่า · ${t0} – ${t1}` : '';
   const multi=sel.length>1, plotH=CH-CPT-CPB, bw=(CW-CPL-CPR)/n;
   const X=i=>CPL+bw*(i+.5);
   const series=sel.map(p=>{
@@ -886,7 +930,8 @@ function drawChart(){
   chartCtx={series, tl, n, bw, X};
   legend.innerHTML=series.map(s=>{ const lastV=s.vals.filter(v=>v!=null).at(-1);
     return `<span><i style="background:${s.col}"></i>${s.p.th} <b>${fmtVal(s.p,lastV)}</b> ${s.p.unit}`+
-      (multi?` <span class="rg">(ช่วง ${fmtVal(s.p,s.mn)}–${fmtVal(s.p,s.mx)})</span>`:'')+`</span>`; }).join('');
+      (multi?` <span class="rg">(ช่วง ${fmtVal(s.p,s.mn)}–${fmtVal(s.p,s.mx)})</span>`:'')+`</span>`; }).join('')+
+    `<span class="rg">· ชี้/แตะบนกราฟเพื่อดูค่าจริง</span>`;
 }
 function CT_BASE(){ return CH-CPB; }
 function chartHover(clientX){
@@ -993,20 +1038,41 @@ function renderTable(){
   document.getElementById('tblwrap').innerHTML=
     `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
 }
-/* สร้างช่องติ๊กเลือกค่าที่จะ export (ค่าเริ่มต้น = เลือกทั้งหมด) */
+/* ---------- ดาวน์โหลด CSV: popup เลือกค่า + ช่วงข้อมูล ---------- */
 function buildExportPick(){
-  const el=document.getElementById('export-pick'); if(!el)return;
-  el.innerHTML='<span class="epk-ttl">⬇️ เลือกค่าที่จะ export:</span>'+
-    PARAMS.map(p=>`<label><input type="checkbox" id="exp-${p.key}" checked>${p.th}</label>`).join('');
+  document.getElementById('csv-params').innerHTML =
+    PARAMS.map(p=>`<label><input type="checkbox" id="exp-${p.key}" checked>${p.th}${p.unit?` <small style="color:var(--muted)">(${p.unit})</small>`:''}</label>`).join('');
+  const setAll=v=>PARAMS.forEach(p=>document.getElementById('exp-'+p.key).checked=v);
+  document.getElementById('csv-all').onclick=()=>setAll(true);
+  document.getElementById('csv-none').onclick=()=>setAll(false);
+  const m=document.getElementById('csv-modal');
+  document.getElementById('csv-cancel').onclick=closeCsvModal;
+  m.addEventListener('click',e=>{ if(e.target===m) closeCsvModal(); });          // คลิกพื้นหลัง = ปิด
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && m.style.display==='flex') closeCsvModal(); });
+  document.getElementById('csv-go').onclick=exportCSV;
 }
+function openCsvModal(){
+  const nView=Math.min(rangeN,times.length);
+  document.getElementById('csv-nview').textContent=`(${nView} แถว)`;
+  document.getElementById('csv-nall').textContent=`(${times.length} แถว)`;
+  document.getElementById('csv-err').textContent='';
+  document.getElementById('csv-modal').style.display='flex';
+}
+function closeCsvModal(){ document.getElementById('csv-modal').style.display='none'; }
 function exportCSV(){
-  const picked=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
-  const cols=picked.length?picked:PARAMS;                 // ไม่ติ๊กเลย = เอาทั้งหมด
-  let csv='เวลา,'+cols.map(p=>p.en).join(',')+'\n';
-  times.forEach((t,i)=>{csv+=t+','+cols.map(p=>(history[p.key][i]??'').toString()).join(',')+'\n';});
+  const cols=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
+  if(!cols.length){ document.getElementById('csv-err').textContent='กรุณาเลือกอย่างน้อย 1 ค่า'; return; }
+  const all=document.querySelector('input[name="csv-range"]:checked')?.value==='all';
+  const n=all?times.length:Math.min(rangeN,times.length), start=times.length-n;
+  let csv='เวลา,'+cols.map(p=>`${p.en}${p.unit?' ('+p.unit+')':''}`).join(',')+'\n';
+  for(let i=start;i<times.length;i++){
+    csv+=times[i]+','+cols.map(p=>{ const h=history[p.key], j=i-(times.length-h.length);   // history อาจสั้นกว่า times -> ชิดท้าย
+      return (j>=0 && h[j]!=null) ? h[j] : ''; }).join(',')+'\n';
+  }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='buoy-history.csv';a.click();
+  a.download='buoy-history.csv'; a.click();
+  closeCsvModal();
 }
 
 
