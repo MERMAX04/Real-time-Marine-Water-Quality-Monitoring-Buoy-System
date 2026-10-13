@@ -233,7 +233,17 @@
   .seg .rbtn{border:0;border-radius:0;padding:6px 11px}
   .seg .rbtn+.rbtn{border-left:1px solid var(--glass-brd)}
   .seg .rbtn.active{border-color:var(--glass-brd)}
-  .span-info{font-size:11px;color:var(--muted)}
+  .span-info{font-size:11.5px;color:var(--muted);margin:-2px 2px 0}
+  .chart-read{min-height:54px;margin:8px 2px 0}
+  .rd-main{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+  .rd-big{font-size:30px;font-weight:800;line-height:1.1}
+  .rd-unit{font-size:14px;color:var(--muted);margin-left:-8px}
+  .rd-chg{font-size:13.5px;font-weight:700;color:#cfe6f7;margin-left:6px}
+  .rd-st{font-size:12.5px;font-weight:700}
+  .rd-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .rd-chips{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:13px;color:#dcefff}
+  .rd-chips i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+  .rd-chips .rd-chg{font-size:12px;margin-left:4px}
   .csv-box{width:min(460px,92vw)}
   .csv-sec{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;color:#dcefff;margin-top:4px}
   .csv-sec a{font-weight:400;font-size:12px;color:var(--accent2);cursor:pointer}
@@ -407,7 +417,7 @@
     </div>
     <div class="toolbar">
       <div class="tbar-left">
-        <div class="ctrl"><span class="hist-lbl">ช่วงข้อมูล</span><div class="seg" id="ranges"></div><span class="span-info" id="range-span"></span></div>
+        <div class="ctrl"><span class="hist-lbl">ช่วงเวลา</span><div class="seg" id="ranges"></div></div>
         <div class="ctrl"><span class="hist-lbl">รูปแบบกราฟ</span><div class="seg" id="ctypes"></div></div>
       </div>
       <div style="display:flex;gap:7px">
@@ -415,9 +425,10 @@
         <button class="obtn" id="exportCsv">⬇️ ดาวน์โหลด CSV</button>
       </div>
     </div>
+    <div class="span-info" id="range-span"></div>
+    <div class="chart-read" id="chart-read"></div>
     <div class="chart-wrap">
       <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
-      <div class="chart-tip" id="chart-tip"></div>
     </div>
     <div class="chart-legend" id="chart-legend"></div>
     <div class="tblwrap" id="tblwrap"></div>
@@ -458,10 +469,7 @@
     <div class="csv-sec">ค่าที่จะดาวน์โหลด <span><a id="csv-all">เลือกทั้งหมด</a> · <a id="csv-none">ล้าง</a></span></div>
     <div class="csv-grid" id="csv-params"></div>
     <div class="csv-sec">ช่วงข้อมูล</div>
-    <div class="csv-range">
-      <label><input type="radio" name="csv-range" value="view" checked>ตามที่แสดงในกราฟ <small id="csv-nview"></small></label>
-      <label><input type="radio" name="csv-range" value="all">ทั้งหมดที่โหลดไว้ <small id="csv-nall"></small></label>
-    </div>
+    <div class="csv-range" id="csv-info"></div>
     <div id="csv-err" class="login-err"></div>
     <div class="login-actions">
       <button id="csv-cancel" class="obtn">ยกเลิก</button>
@@ -535,13 +543,15 @@ const PARAMS = [
 const HISTORY_LEN = 120;
 const history = {}, times = [];
 PARAMS.forEach(p => history[p.key] = []);
-let rangeN = 60, showTable = false;
+let showTable = false, sbClient = null;
+const timesMs = [];   // เวลาจริง (ms) คู่กับ times[]
 /* กราฟประวัติ: ค่าที่เลือก (หลายค่าได้) + ชนิดกราฟ — จำไว้ในเบราว์เซอร์ */
-let selKeys = [PARAMS[0].key], chartType = 'line';
+let selKeys = [PARAMS[0].key], chartType = 'line', chartRange = '6h';
 try{ const s=JSON.parse(localStorage.getItem('buoy-chart')||'{}');
   if(Array.isArray(s.sel)){ const ok=s.sel.filter(k=>PARAMS.some(p=>p.key===k)); if(ok.length) selKeys=ok; }
-  if(['line','area','bar','scatter'].includes(s.type)) chartType=s.type; }catch(e){}
-function saveChartPref(){ try{ localStorage.setItem('buoy-chart', JSON.stringify({sel:selKeys,type:chartType})); }catch(e){} }
+  if(['line','area','bar','scatter'].includes(s.type)) chartType=s.type;
+  if(['1h','6h','24h','7d','30d'].includes(s.range)) chartRange=s.range; }catch(e){}
+function saveChartPref(){ try{ localStorage.setItem('buoy-chart', JSON.stringify({sel:selKeys,type:chartType,range:chartRange})); }catch(e){} }
 const displayVal = {};   // ค่าที่กำลังแสดง (ไว้ทำอนิเมชันนับ)
 
 /* ---------- วิเคราะห์: คะแนนย่อยรายพารามิเตอร์ (0–100) + สถานะ ---------- */
@@ -719,8 +729,8 @@ function mapRow(r){ return {do:r.do_val, do_pct:(r.do_pct!=null&&r.do_pct<=2?r.d
    rows = เรียงจาก "เก่า -> ใหม่" */
 function seedHistory(rows){
   const mapped = rows.map(mapRow);
-  times.length = 0;
-  rows.forEach(r => times.push(new Date(r.created_at).toLocaleTimeString('th-TH')));
+  times.length = 0; timesMs.length = 0;
+  rows.forEach(r => { times.push(new Date(r.created_at).toLocaleTimeString('th-TH')); timesMs.push(Date.parse(r.created_at)); });
   PARAMS.forEach(p=>{
     const vals = mapped.map(m=>{ const v=m[p.key]; return (v==null||isNaN(Number(v)))?null:Number(v); });
     let last=null;   // ช่องว่างระหว่างทาง -> ใช้ค่าก่อนหน้า (แถวทดสอบบางแถวไม่ได้ส่งครบทุกค่า)
@@ -737,7 +747,7 @@ function seedHistory(rows){
 
 function initSource(){
   if (CONFIG.mode === 'supabase'){
-    const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+    const sb = sbClient = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
     document.getElementById('loc').textContent = CONFIG.device;
     // 1) ดึงย้อนหลังมาเติมกราฟ/ตาราง (ไม่ใช่แค่แถวเดียว)
     sb.from('readings').select('*').eq('device',CONFIG.device)
@@ -745,11 +755,12 @@ function initSource(){
       .then(({data,error})=>{
         if(error) return console.warn('Supabase load error:',error);
         if(data && data.length) seedHistory(data.slice().reverse());   // กลับเป็น เก่า -> ใหม่
+        loadChartData();                                                // กราฟประวัติตามช่วงเวลา
       });
     // 2) ฟังแถวใหม่แบบ realtime (มี INSERT = ข้อมูลสด)
     sb.channel('readings-'+CONFIG.device)
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'readings',filter:`device=eq.${CONFIG.device}`},
-        payload=>{ sbLatest=mapRow(payload.new);
+        payload=>{ sbLatest=mapRow(payload.new); chartOnNewRow(Date.parse(payload.new.created_at), sbLatest);
                    sbLastTs=new Date(payload.new.created_at).getTime(); lastDataAt=sbLastTs; })
       .subscribe();
     // 3) polling สำรองทุก 15 วิ — เผื่อ realtime socket หลุด หน้าเว็บจะได้ไม่ค้าง
@@ -758,7 +769,7 @@ function initSource(){
         .order('created_at',{ascending:false}).limit(1);
       if(error || !data || !data[0]) return;
       const ts = new Date(data[0].created_at).getTime();
-      if(ts !== sbLastTs){ sbLastTs=ts; sbLatest=mapRow(data[0]); lastDataAt=ts; }   // มีแถวใหม่จริงเท่านั้น
+      if(ts !== sbLastTs){ sbLastTs=ts; sbLatest=mapRow(data[0]); lastDataAt=ts; chartOnNewRow(ts, sbLatest); }   // มีแถวใหม่จริงเท่านั้น
     }, 15000);
   }
 }
@@ -829,11 +840,11 @@ function buildCards(){
   svg.addEventListener('mousemove',onPoint); svg.addEventListener('touchstart',onPoint,{passive:true});
   svg.addEventListener('touchmove',onPoint,{passive:true});
   svg.addEventListener('mouseleave',chartHoverOff);
-  // ช่วงข้อมูล = จำนวนค่าที่วัดล่าสุด (ทุ่นส่งทุก ~15 วิ) — ช่วงเวลาจริงแสดงข้างปุ่ม (#range-span)
-  document.getElementById('ranges').innerHTML = [[30,'30 ค่าล่าสุด','≈ 7.5 นาที ถ้าทุ่นส่งต่อเนื่อง'],[60,'60 ค่าล่าสุด','≈ 15 นาที ถ้าทุ่นส่งต่อเนื่อง'],[HISTORY_LEN,'ทั้งหมด','ทุกค่าที่โหลดไว้ (สูงสุด '+HISTORY_LEN+' ค่า)']]
-    .map(([n,l,t])=>`<button class="rbtn ${n===rangeN?'active':''}" data-n="${n}" title="${t}">${l}</button>`).join('');
-  document.querySelectorAll('#ranges .rbtn').forEach(b=>b.onclick=()=>{rangeN=+b.dataset.n;
-    document.querySelectorAll('#ranges .rbtn').forEach(x=>x.classList.toggle('active',+x.dataset.n===rangeN));drawChart();renderTable();});
+  // ช่วงเวลา (ตามเวลาจริง) — 7/30 วัน ใช้ค่าเฉลี่ยรายวัน
+  document.getElementById('ranges').innerHTML = RANGES
+    .map(([k,l])=>`<button class="rbtn ${k===chartRange?'active':''}" data-r="${k}">${l}</button>`).join('');
+  document.querySelectorAll('#ranges .rbtn').forEach(b=>b.onclick=()=>{chartRange=b.dataset.r; saveChartPref();
+    document.querySelectorAll('#ranges .rbtn').forEach(x=>x.classList.toggle('active',x.dataset.r===chartRange)); loadChartData();});
   document.getElementById('toggleTbl').onclick=()=>{showTable=!showTable;
     document.getElementById('tblwrap').style.display=showTable?'block':'none';
     document.getElementById('chart').style.display=showTable?'none':'block';renderTable();};
@@ -861,95 +872,291 @@ function drawSpark(p){
     `<polyline fill="none" stroke="${p.color}" stroke-width="2" points="${pts}"/>`;
 }
 
-/* กราฟประวัติ: 1 ค่า = แกนค่าจริง + แถบช่วงที่ดี
-   หลายค่า = ปรับสเกลแต่ละค่าเป็น 0–100% ของช่วงที่เห็นในกราฟ เพื่อเทียบ "แนวโน้ม" (ค่าจริงดูได้จากการชี้) */
-let chartCtx = null;
-const CW=820, CH=280, CPL=44, CPR=16, CPT=30, CPB=30;
+/* =========================================================================
+   กราฟประวัติย้อนหลัง (ตามช่วงเวลาจริง)
+   - ช่วง 1 ชม./6 ชม./24 ชม. = ค่าดิบจากตาราง readings · 7/30 วัน = ค่าเฉลี่ยรายวันจาก view readings_daily
+   - แกน X เป็นเวลาจริง: ช่วงที่ทุ่นไม่ได้ส่งข้อมูลจะเว้นว่าง + แถบ "ไม่มีข้อมูล" (ไม่ลากเส้นทะลุ)
+   - ถ้าทุ่นออฟไลน์ ช่วงเวลาจะสิ้นสุดที่ข้อมูลล่าสุดแทน "ตอนนี้" (ไม่งั้นกราฟว่าง)
+   - 1 ค่า: แกนค่าจริง + สีเส้นตามสถานะของโหมดมาตรฐาน · หลายค่า: สเกล 0–100% เพื่อเทียบแนวโน้ม
+   - ชี้/แตะ/ลากบนกราฟ: ตัวเลขด้านบนเปลี่ยนตามจุดนั้น + ส่วนหลังจุดชี้จางลง
+   ========================================================================= */
+const RANGES=[['1h','1 ชม.',36e5],['6h','6 ชม.',216e5],['24h','24 ชม.',864e5],['7d','7 วัน',6048e5],['30d','30 วัน',2592e6]];
+const CW=820, CH=280, CPL=44, CPR=16, CPT=30, CPB=30, MAXPTS=360;
+const ST_COL={green:'#22c55e',orange:'#fab219',red:'#ef4444'};
+let chartRows=[], chartWin=null, chartCtx=null, chartReq=0;
+
+const fmtD = t=>new Date(t).toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+const fmtT = t=>new Date(t).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+const fmtDT= t=>fmtD(t)+' '+fmtT(t);
+function rangeMs(){ return (RANGES.find(r=>r[0]===chartRange)||RANGES[1])[2]; }
+function isDaily(){ return rangeMs()>=6048e5; }
+
+/* โหลดข้อมูลของช่วงที่เลือก */
+async function loadChartData(){
+  const req=++chartReq, ms=rangeMs(), daily=isDaily(), now=Date.now();
+  if(CONFIG.mode!=='supabase' || !sbClient){          // mock/server: ใช้ข้อมูลในหน่วยความจำ
+    chartWin={start:now-ms,end:now,anchored:false,daily:false,live:true,mem:true};
+    drawChart(); renderTable(); return;
+  }
+  const offline = lastDataAt==null || now-lastDataAt>3e5;
+  const end = offline && lastDataAt ? lastDataAt : now, start=end-ms;
+  document.getElementById('range-span').textContent='กำลังโหลด…';
+  const rows=[];
+  try{
+    if(daily){
+      const {data,error}=await sbClient.from('readings_daily').select('*').eq('device',CONFIG.device)
+        .gte('day',new Date(start-864e5).toISOString()).order('day',{ascending:true});
+      if(error) throw error;
+      (data||[]).forEach(r=>{ const v={do:r.do_avg,do_pct:r.do_pct_avg!=null&&r.do_pct_avg<=2?r.do_pct_avg*100:r.do_pct_avg,
+        temp:r.temp_avg,ph:r.ph_avg,sal:r.sal_avg,cond:r.cond_avg,turb:r.turb_avg};
+        rows.push({t:Date.parse(r.day), v, n:r.n}); });
+    } else {
+      for(let off=0; off<12000; off+=1000){                                     // Supabase คืนครั้งละ ≤1000 แถว
+        const {data,error}=await sbClient.from('readings').select('created_at,do_val,do_pct,temp,ph,sal,cond,turb,sensor_ok')
+          .eq('device',CONFIG.device).gte('created_at',new Date(start).toISOString()).lte('created_at',new Date(end).toISOString())
+          .order('created_at',{ascending:true}).range(off,off+999);
+        if(error) throw error;
+        (data||[]).forEach(r=>{ if(validRow(r)) rows.push({t:Date.parse(r.created_at), v:mapRow(r)}); });
+        if(!data || data.length<1000) break;
+      }
+    }
+  }catch(e){ console.warn('chart load error',e); }
+  if(req!==chartReq) return;                                                    // มีคำขอใหม่กว่าแล้ว
+  chartRows=rows;
+  chartWin={start,end,anchored:end!==now,daily,live:!offline&&!daily};
+  drawChart(); renderTable();
+}
+/* แถวที่ใช้ไม่ได้: heartbeat (sensor_ok=false) หรือเซนเซอร์คืนค่า 0 ทั้งชุด (pH/อุณหภูมิ 0 ในน้ำทะเลเป็นไปไม่ได้) */
+function validRow(r){
+  if(r.sensor_ok===false) return false;
+  return !((+r.temp===0 || r.temp==null) && (+r.ph===0 || r.ph==null));
+}
+/* แถวใหม่จาก realtime/polling -> ต่อท้ายกราฟ (ช่วงสด) หรือโหลดใหม่ (ถ้าเดิมทุ่นออฟไลน์) */
+function chartOnNewRow(t, d){
+  if(!chartWin || chartWin.mem) return;
+  if(!chartWin.live){ if(!chartWin.daily) loadChartData(); return; }
+  if(chartRows.length && t<=chartRows.at(-1).t) return;
+  if(!validRow({sensor_ok:d.sensor_ok, temp:d.temp, ph:d.ph})) return;
+  chartRows.push({t, v:{...d}});
+}
+
+/* จุดของแต่ละค่า (ลดจำนวนจุดถ้าเยอะเกิน: เฉลี่ยเป็นช่วงเท่าๆ กัน) */
+function seriesPoints(key, start, end){
+  let pts=[];
+  if(chartWin.mem){
+    const h=history[key], off=timesMs.length-h.length;
+    for(let i=0;i<h.length;i++){ const t=timesMs[i+off]; if(t>=start&&t<=end&&h[i]!=null) pts.push({t,v:+h[i]}); }
+  } else chartRows.forEach(r=>{ const v=r.v[key]; if(r.t>=start&&r.t<=end&&v!=null&&!isNaN(v)) pts.push({t:r.t,v:+v}); });
+  if(pts.length<=MAXPTS) return {pts, bucket:0};
+  const bw=(end-start)/MAXPTS, out=[];
+  let b=-1, sv=0, st=0, n=0;
+  pts.forEach(p=>{ const k=Math.floor((p.t-start)/bw);
+    if(k!==b){ if(n) out.push({t:st/n,v:sv/n}); b=k; sv=st=n=0; }
+    sv+=p.v; st+=p.t; n++; });
+  if(n) out.push({t:st/n,v:sv/n});
+  return {pts:out, bucket:bw};
+}
+function gapThreshold(pts, bucket){
+  if(chartWin.daily) return 1.6*864e5;
+  const d=[]; for(let i=1;i<pts.length;i++) d.push(pts[i].t-pts[i-1].t);
+  d.sort((a,b)=>a-b); const med=d.length?d[d.length>>1]:15e3;
+  return Math.max(5*med, 12e4, 2.5*bucket);
+}
+function statusBand(p){
+  const c=MODE_CFG && MODE_CFG.modes[CUR_MODE].criteria[cfgKey(p.key)];
+  return c ? c.green : p.ideal;
+}
+const worse=(a,b)=>{ const r={red:3,orange:2,green:1}; return (r[a]||0)>=(r[b]||0)?a:b; };
+
 function drawChart(){
   const svg=document.getElementById('chart'), legend=document.getElementById('chart-legend');
-  chartHoverOff();
-  const sel=PARAMS.filter(p=>selKeys.includes(p.key) && history[p.key].length>=2);
-  if(!sel.length){ chartCtx=null; legend.innerHTML='';
-    svg.innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">ยังมีข้อมูลไม่พอสำหรับวาดกราฟ</text>`; return; }
-  const n=Math.min(rangeN, Math.max(...sel.map(p=>history[p.key].length)));
-  const pad=(a)=>{ const t=a.slice(-n); return Array(n-t.length).fill(null).concat(t); };   // ชิดขวา = ล่าสุด
-  const tl=pad(times);
-  const t0=tl.find(Boolean), t1=tl.at(-1);
-  document.getElementById('range-span').textContent = t0 ? `${n} ค่า · ${t0} – ${t1}` : '';
-  const multi=sel.length>1, plotH=CH-CPT-CPB, bw=(CW-CPL-CPR)/n;
-  const X=i=>CPL+bw*(i+.5);
-  const series=sel.map(p=>{
-    const vals=pad(history[p.key]), real=vals.filter(v=>v!=null);
-    const mn=Math.min(...real), mx=Math.max(...real), r=mx-mn;
-    const norm=v=> v==null?null : (multi ? (r?(v-mn)/r:.5) : (v-mn)/(r||1));
-    return {p, vals, mn, mx, norm, col:p.color};
+  if(!chartWin) return;
+  if(chartWin.live){ chartWin.end=Date.now(); chartWin.start=chartWin.end-rangeMs(); }
+  const {start,end}=chartWin, span=end-start, plotW=CW-CPL-CPR, plotH=CH-CPT-CPB;
+  const X=t=>CPL+(t-start)/span*plotW;
+  const sel=PARAMS.filter(p=>selKeys.includes(p.key));
+  const series=sel.map(p=>{ const {pts,bucket}=seriesPoints(p.key,start,end); return {p,pts,bucket,col:p.color}; })
+                  .filter(s=>s.pts.length);
+  // ข้อมูลช่วง
+  const nRows = chartWin.mem ? series.reduce((m,s)=>Math.max(m,s.pts.length),0)
+                             : chartRows.filter(r=>r.t>=start&&r.t<=end).length;
+  document.getElementById('range-span').textContent =
+    `${fmtDT(start)} – ${fmtDT(end)} · ${nRows} ${chartWin.daily?'วัน':'รายการ'}`+
+    (chartWin.daily?' · ค่าเฉลี่ยรายวัน':'')+(chartWin.anchored?' · ทุ่นออฟไลน์: แสดงถึงข้อมูลล่าสุด':'');
+  chartHoverOff(true);
+  if(!series.length){
+    chartCtx=null; legend.innerHTML=''; document.getElementById('chart-read').innerHTML='';
+    svg.innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">ไม่มีข้อมูลในช่วงเวลานี้ — ลองเลือกช่วงที่ยาวขึ้น</text>`;
+    return;
+  }
+  const multi=series.length>1;
+  series.forEach(s=>{
+    const vs=s.pts.map(q=>q.v); s.mn=Math.min(...vs); s.mx=Math.max(...vs);
+    s.avg=vs.reduce((a,b)=>a+b,0)/vs.length; s.thr=gapThreshold(s.pts,s.bucket);
   });
-  const Y=f=>CPT+(1-f)*plotH;
-  // กริด + ป้ายแกน Y
+  // สเกล Y
+  let lo, hi;
+  if(!multi){ const s=series[0], pad=((s.mx-s.mn)||Math.abs(s.mx)*.05||1)*.12; lo=s.mn-pad; hi=s.mx+pad; }
+  const Yv=(s,v)=> multi ? CPT+(1-((s.mx-s.mn)?(v-s.mn)/(s.mx-s.mn):.5))*plotH : CPT+(1-(v-lo)/(hi-lo))*plotH;
   let g='';
-  for(let k=0;k<=4;k++){ const f=1-k/4, y=Y(f);
-    const lab = multi ? Math.round(f*100)+'%' : fmtVal(sel[0], series[0].mn+f*((series[0].mx-series[0].mn)||1));
-    g+=`<line x1="${CPL}" y1="${y}" x2="${CW-CPR}" y2="${y}" stroke="rgba(255,255,255,.07)"/>
-        <text x="6" y="${y+4}" fill="#8fb3cf" font-size="11">${lab}</text>`; }
-  // ป้ายเวลาแกน X (5 จุด)
-  for(let k=0;k<5;k++){ const i=Math.round(k/4*(n-1)); if(!tl[i]) continue;
-    g+=`<text x="${X(i)}" y="${CH-8}" fill="#8fb3cf" font-size="10.5" text-anchor="${k===0?'start':k===4?'end':'middle'}">${tl[i]}</text>`; }
-  // แถบช่วงที่ดี (เฉพาะกราฟค่าเดียว)
-  if(!multi){ const s=series[0], [ilo,ihi]=s.p.ideal;
-    if(ihi>=s.mn && ilo<=s.mx){ const yT=Y(s.norm(Math.min(ihi,s.mx))), yB=Y(s.norm(Math.max(ilo,s.mn)));
-      g+=`<rect x="${CPL}" y="${yT}" width="${CW-CPL-CPR}" height="${Math.max(0,yB-yT)}" fill="rgba(12,163,12,.10)"/>`; } }
+  for(let k=0;k<=4;k++){ const f=1-k/4, y=CPT+k/4*plotH;
+    const lab = multi ? Math.round(f*100)+'%' : fmtVal(series[0].p, lo+f*(hi-lo));
+    g+=`<line x1="${CPL}" y1="${y}" x2="${CW-CPR}" y2="${y}" stroke="rgba(255,255,255,.07)"/><text x="6" y="${y+4}" fill="#8fb3cf" font-size="11">${lab}</text>`; }
+  // แกนเวลา
+  for(let k=0;k<5;k++){ const t=start+k/4*span;
+    const lab = (chartWin.daily||span>36*36e5) ? fmtD(t) : (k===0||new Date(t).getDate()!==new Date(start+(k-1)/4*span).getDate() ? fmtDT(t) : fmtT(t));
+    g+=`<text x="${X(t)}" y="${CH-8}" fill="#8fb3cf" font-size="10.5" text-anchor="${k===0?'start':k===4?'end':'middle'}">${lab}</text>`; }
+  // แถบ "ไม่มีข้อมูล" (ใช้จุดของทุกค่าที่เลือกรวมกัน)
+  const allT=[...new Set(series.flatMap(s=>s.pts.map(q=>q.t)))].sort((a,b)=>a-b), thr=Math.min(...series.map(s=>s.thr));
+  const gaps=[]; let prev=start;
+  allT.concat([end]).forEach(t=>{ if(t-prev>thr) gaps.push([prev,t]); prev=t; });
+  gaps.forEach(([a,b])=>{ const x0=X(a), w=X(b)-x0;
+    g+=`<rect x="${x0}" y="${CPT}" width="${w}" height="${plotH}" fill="rgba(255,255,255,.035)"/>`+
+       (w>70?`<text x="${x0+w/2}" y="${CPT+plotH/2}" fill="#6b8aa3" font-size="11" text-anchor="middle">ไม่มีข้อมูล</text>`:''); });
+  // แถบช่วงปกติตามโหมด (กราฟค่าเดียว)
+  if(!multi){ const [blo,bhi]=statusBand(series[0].p), a=Math.max(blo??-Infinity,lo), b=Math.min(bhi??Infinity,hi);
+    if(b>a){ const yT=Yv(series[0],b), yB=Yv(series[0],a);
+      g+=`<rect x="${CPL}" y="${yT}" width="${plotW}" height="${yB-yT}" fill="rgba(34,197,94,.08)"/>`; } }
   let defs='', body='';
   series.forEach((s,si)=>{
-    const pts=s.vals.map((v,i)=>v==null?null:[X(i),Y(s.norm(v))]);
+    const P=s.pts.map(q=>({x:X(q.t), y:Yv(s,q.v), st:multi?null:paramStatusMode(s.p.key,q.v), t:q.t}));
+    s.P=P;
+    const colOf=st=>(!multi&&st)?ST_COL[st]:s.col;
+    // แบ่งเป็นช่วงต่อเนื่องตามช่องว่างของข้อมูล
+    const runs=[]; let cur=[];
+    P.forEach((q,i)=>{ if(i && q.t-P[i-1].t>s.thr){ runs.push(cur); cur=[]; } cur.push(q); }); runs.push(cur);
     if(chartType==='bar'){
-      const gw=bw*.8, w=gw/series.length;
-      pts.forEach((q,i)=>{ if(!q) return; const x=X(i)-gw/2+si*w;
-        body+=`<rect x="${x.toFixed(1)}" y="${q[1].toFixed(1)}" width="${Math.max(.8,w-.4).toFixed(1)}" height="${(CT_BASE()-q[1]).toFixed(1)}" style="fill:${s.col}" opacity=".85"/>`; });
+      const w=Math.max(1.2, Math.min(14, plotW/Math.max(P.length,1)*.7))/series.length;
+      P.forEach(q=>{ body+=`<rect x="${(q.x-w*series.length/2+si*w).toFixed(1)}" y="${q.y.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0,CH-CPB-q.y).toFixed(1)}" style="fill:${colOf(q.st)}" opacity=".85"/>`; });
       return;
     }
-    if(chartType==='scatter'){
-      pts.forEach(q=>{ if(q) body+=`<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="2.8" style="fill:${s.col}"/>`; });
-      return;
-    }
-    // line / area: แบ่งช่วงตามจุดที่ไม่มีข้อมูล
-    const segs=[]; let cur=[];
-    pts.forEach(q=>{ if(q) cur.push(q); else if(cur.length){ segs.push(cur); cur=[]; } }); if(cur.length) segs.push(cur);
+    if(chartType==='scatter'){ P.forEach(q=>{ body+=`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="2.6" style="fill:${colOf(q.st)}"/>`; }); return; }
     if(chartType==='area'){
-      defs+=`<linearGradient id="cf${si}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${s.col}" stop-opacity="${multi?.22:.35}"/><stop offset="100%" style="stop-color:${s.col}" stop-opacity="0"/></linearGradient>`;
-      segs.forEach(sg=>{ const l=sg.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
-        body+=`<polygon points="${sg[0][0].toFixed(1)},${CT_BASE()} ${l} ${sg.at(-1)[0].toFixed(1)},${CT_BASE()}" fill="url(#cf${si})"/>`; });
+      defs+=`<linearGradient id="cf${si}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${s.col}" stop-opacity="${multi?.2:.3}"/><stop offset="100%" style="stop-color:${s.col}" stop-opacity="0"/></linearGradient>`;
+      runs.forEach(r=>{ if(r.length<2) return;
+        body+=`<polygon points="${r[0].x.toFixed(1)},${CH-CPB} ${r.map(q=>q.x.toFixed(1)+','+q.y.toFixed(1)).join(' ')} ${r.at(-1).x.toFixed(1)},${CH-CPB}" fill="url(#cf${si})"/>`; });
     }
-    segs.forEach(sg=>{ body+=`<polyline points="${sg.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" style="stroke:${s.col}" stroke-width="${multi?2:2.5}"/>`; });
-    const last=pts.filter(Boolean).at(-1); if(last) body+=`<circle cx="${last[0]}" cy="${last[1]}" r="4" style="fill:${s.col}"/>`;
+    runs.forEach(r=>{
+      if(r.length===1){ body+=`<circle cx="${r[0].x}" cy="${r[0].y}" r="2.4" style="fill:${colOf(r[0].st)}"/>`; return; }
+      if(multi){ body+=`<polyline points="${r.map(q=>q.x.toFixed(1)+','+q.y.toFixed(1)).join(' ')}" fill="none" style="stroke:${s.col}" stroke-width="2"/>`; return; }
+      // ค่าเดียว: ระบายสีทีละท่อนตามสถานะ (รวมท่อนสีเดียวกันติดกันเป็นเส้นเดียว)
+      let seg=[r[0]], sc=null;
+      for(let i=1;i<r.length;i++){ const c=colOf(worse(r[i-1].st,r[i].st));
+        if(sc && c!==sc){ body+=`<polyline points="${seg.map(q=>q.x.toFixed(1)+','+q.y.toFixed(1)).join(' ')}" fill="none" style="stroke:${sc}" stroke-width="2.5" stroke-linejoin="round"/>`; seg=[r[i-1]]; }
+        sc=c; seg.push(r[i]); }
+      body+=`<polyline points="${seg.map(q=>q.x.toFixed(1)+','+q.y.toFixed(1)).join(' ')}" fill="none" style="stroke:${sc}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    });
+    const L=P.at(-1); body+=`<circle cx="${L.x}" cy="${L.y}" r="4" style="fill:${colOf(L.st)}"/>`;
   });
-  const title = multi ? 'เทียบแนวโน้ม · สเกล 0–100% ของช่วงค่าแต่ละตัวในกราฟ'
-                      : `${sel[0].th}${sel[0].unit?' ('+sel[0].unit+')':''} · แถบเขียว = ช่วงที่ดี`;
+  const title = multi ? 'เทียบแนวโน้ม · สเกล 0–100% ของช่วงค่าแต่ละตัว'
+                      : `${series[0].p.th}${series[0].p.unit?' ('+series[0].p.unit+')':''} · แถบเขียว = ช่วงปกติตามโหมด`;
   svg.innerHTML=`<defs>${defs}</defs>${g}${body}
-    <line id="xh" x1="0" y1="${CPT}" x2="0" y2="${CH-CPB}" stroke="rgba(255,255,255,.45)" stroke-dasharray="3 3" display="none"/>
+    <rect id="xfade" x="0" y="${CPT}" width="0" height="${plotH}" fill="rgba(4,16,28,.55)" display="none"/>
+    <line id="xh" x1="0" y1="${CPT}" x2="0" y2="${CH-CPB}" stroke="rgba(255,255,255,.55)" stroke-dasharray="3 3" display="none"/>
+    <circle id="xdot" r="5" fill="#fff" display="none"/>
     <text x="${CW-CPR}" y="18" fill="#eaf6ff" font-size="13" text-anchor="end">${title}</text>`;
-  chartCtx={series, tl, n, bw, X};
-  legend.innerHTML=series.map(s=>{ const lastV=s.vals.filter(v=>v!=null).at(-1);
-    return `<span><i style="background:${s.col}"></i>${s.p.th} <b>${fmtVal(s.p,lastV)}</b> ${s.p.unit}`+
-      (multi?` <span class="rg">(ช่วง ${fmtVal(s.p,s.mn)}–${fmtVal(s.p,s.mx)})</span>`:'')+`</span>`; }).join('')+
-    `<span class="rg">· ชี้/แตะบนกราฟเพื่อดูค่าจริง</span>`;
+  chartCtx={series, multi, start, end, X};
+  legend.innerHTML = multi
+    ? series.map(s=>`<span><i style="background:${s.col}"></i>${s.p.th}</span>`).join('')+`<span class="rg">· ชี้/ลากบนกราฟเพื่อดูค่าจริง ณ เวลานั้น</span>`
+    : `<span class="rg">สีเส้นตามเกณฑ์โหมด:</span><span><i style="background:${ST_COL.green}"></i>ปกติ</span><span><i style="background:${ST_COL.orange}"></i>เฝ้าระวัง</span><span><i style="background:${ST_COL.red}"></i>เกินเกณฑ์</span><span class="rg">· ชี้/ลากบนกราฟเพื่อดูค่า</span>`;
+  renderReadout(null);
 }
-function CT_BASE(){ return CH-CPB; }
+
+/* แถบตัวเลขเหนือกราฟ: ค่า ณ จุดที่ชี้ (หรือค่าล่าสุด) + เปลี่ยนแปลงจากต้นช่วง */
+function nearestIdx(P,t){ let lo=0,hi=P.length-1; while(hi-lo>1){ const m=(lo+hi)>>1; if(P[m].t<t) lo=m; else hi=m; }
+  return Math.abs(P[lo].t-t)<=Math.abs(P[hi].t-t)?lo:hi; }
+function chgHtml(p,a,b){ const d=b-a, pc=a?d/Math.abs(a)*100:0;
+  const arrow=Math.abs(d)<1e-9?'→':d>0?'↗':'↘', sign=d>0?'+':d<0?'−':'';
+  return `<span class="rd-chg">${arrow} ${sign}${fmtVal(p,Math.abs(d))}${p.unit?' '+p.unit:''}${a?` (${sign}${Math.abs(pc).toFixed(1)}%)`:''}</span>`; }
+function renderReadout(t){
+  const el=document.getElementById('chart-read'); if(!chartCtx){ el.innerHTML=''; return; }
+  const {series,multi}=chartCtx;
+  const at=s=>{ const i=t==null?s.P.length-1:nearestIdx(s.P,t); return s.P[i]; };
+  const q0=at(series[0]), when=t==null?'ล่าสุด · ':'', fT=x=>chartWin.daily?fmtD(x):fmtDT(x);
+  const sinceTxt=chartWin.daily?'เทียบวันแรกของช่วง':'เทียบต้นช่วง';
+  if(!multi){
+    const s=series[0], q=q0, v=s.pts[s.P.indexOf(q)].v, st=paramStatusMode(s.p.key,v);
+    const stTxt=st?{green:'🟢 ปกติ',orange:'🟠 เฝ้าระวัง',red:'🔴 เกินเกณฑ์'}[st]:'';
+    el.innerHTML=`<div class="rd-main"><span class="rd-big" style="color:${st?ST_COL[st]:s.col}">${fmtVal(s.p,v)}</span><span class="rd-unit">${s.p.unit}</span>`+
+      chgHtml(s.p,s.pts[0].v,v)+`<span class="rd-st">${stTxt}</span></div>`+
+      `<div class="rd-sub">🕒 ${when}${fT(q.t)} · ${sinceTxt} · ต่ำสุด ${fmtVal(s.p,s.mn)} · สูงสุด ${fmtVal(s.p,s.mx)} · เฉลี่ย ${fmtVal(s.p,s.avg)}</div>`;
+  } else {
+    el.innerHTML=`<div class="rd-chips">`+series.map(s=>{ const q=at(s), v=s.pts[s.P.indexOf(q)].v;
+      return `<span><i style="background:${s.col}"></i>${s.p.th} <b>${fmtVal(s.p,v)}</b> ${s.p.unit}${chgHtml(s.p,s.pts[0].v,v)}</span>`; }).join('')+
+      `</div><div class="rd-sub">🕒 ${when}${fT(q0.t)} · ลูกศร = ${sinceTxt}</div>`;
+  }
+}
 function chartHover(clientX){
   if(!chartCtx) return;
-  const svg=document.getElementById('chart'), tip=document.getElementById('chart-tip'), rect=svg.getBoundingClientRect();
-  const {series,tl,n,bw,X}=chartCtx;
-  const xs=(clientX-rect.left)/rect.width*CW;
-  const i=Math.max(0, Math.min(n-1, Math.round((xs-CPL)/bw-.5)));
-  const xh=document.getElementById('xh'); if(xh){ xh.setAttribute('x1',X(i)); xh.setAttribute('x2',X(i)); xh.setAttribute('display','inline'); }
-  tip.innerHTML=`<div class="tt">🕒 ${tl[i]||'—'}</div>`+series.map(s=>
-    `<div><i style="background:${s.col}"></i>${s.p.th}: <b>${fmtVal(s.p,s.vals[i])}</b> ${s.vals[i]==null?'':s.p.unit}</div>`).join('');
-  tip.style.display='block';
-  const px=X(i)/CW*rect.width, tw=tip.offsetWidth;
-  tip.style.left=(px+12+tw>rect.width ? Math.max(0,px-12-tw) : px+12)+'px';
+  const svg=document.getElementById('chart'), rect=svg.getBoundingClientRect();
+  const {series,start,end,X}=chartCtx;
+  const xs=Math.max(CPL,Math.min(CW-CPR,(clientX-rect.left)/rect.width*CW));
+  const t=start+(xs-CPL)/(CW-CPL-CPR)*(end-start);
+  const s0=series[0], q=s0.P[nearestIdx(s0.P,t)];
+  const xh=document.getElementById('xh'), xf=document.getElementById('xfade'), xd=document.getElementById('xdot');
+  xh.setAttribute('x1',q.x); xh.setAttribute('x2',q.x); xh.setAttribute('display','inline');
+  xf.setAttribute('x',q.x); xf.setAttribute('width',Math.max(0,CW-CPR-q.x)); xf.setAttribute('display','inline');
+  if(!chartCtx.multi){ xd.setAttribute('cx',q.x); xd.setAttribute('cy',q.y); xd.setAttribute('display','inline'); }
+  renderReadout(q.t);
 }
-function chartHoverOff(){
-  const tip=document.getElementById('chart-tip'); if(tip) tip.style.display='none';
-  const xh=document.getElementById('xh'); if(xh) xh.setAttribute('display','none');
+function chartHoverOff(silent){
+  ['xh','xfade','xdot'].forEach(id=>{ const e=document.getElementById(id); if(e) e.setAttribute('display','none'); });
+  if(silent!==true) renderReadout(null);
+}
+
+/* ตาราง = ข้อมูลของช่วงที่เลือก (ใหม่ -> เก่า) */
+function windowRows(){
+  if(!chartWin) return [];
+  if(chartWin.mem){ const rows=[];
+    for(let i=0;i<timesMs.length;i++){ const t=timesMs[i]; if(t<chartWin.start) continue;
+      const v={}; PARAMS.forEach(p=>{ const h=history[p.key], j=i-(timesMs.length-h.length); v[p.key]=j>=0?h[j]:null; }); rows.push({t,v}); }
+    return rows; }
+  return chartRows.filter(r=>r.t>=chartWin.start&&r.t<=chartWin.end);
+}
+function renderTable(){
+  if(!showTable) return;
+  const rows=windowRows().slice(-500).reverse();
+  document.getElementById('tblwrap').innerHTML=
+    `<table><thead><tr><th>${chartWin&&chartWin.daily?'วันที่':'เวลา'}</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>`+
+    rows.map(r=>`<tr><td>${chartWin.daily?fmtD(r.t):fmtDT(r.t)}</td>${PARAMS.map(p=>`<td>${fmtVal(p,r.v[p.key]==null?null:+r.v[p.key])}</td>`).join('')}</tr>`).join('')+
+    `</tbody></table>`;
+}
+
+/* ---------- ดาวน์โหลด CSV: popup เลือกค่า (ข้อมูล = ช่วงเวลาที่เลือกในกราฟ) ---------- */
+function buildExportPick(){
+  document.getElementById('csv-params').innerHTML =
+    PARAMS.map(p=>`<label><input type="checkbox" id="exp-${p.key}" checked>${p.th}${p.unit?` <small style="color:var(--muted)">(${p.unit})</small>`:''}</label>`).join('');
+  const setAll=v=>PARAMS.forEach(p=>document.getElementById('exp-'+p.key).checked=v);
+  document.getElementById('csv-all').onclick=()=>setAll(true);
+  document.getElementById('csv-none').onclick=()=>setAll(false);
+  const m=document.getElementById('csv-modal');
+  document.getElementById('csv-cancel').onclick=closeCsvModal;
+  m.addEventListener('click',e=>{ if(e.target===m) closeCsvModal(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && m.style.display==='flex') closeCsvModal(); });
+  document.getElementById('csv-go').onclick=exportCSV;
+}
+function openCsvModal(){
+  const n=windowRows().length, lab=(RANGES.find(r=>r[0]===chartRange)||RANGES[1])[1];
+  document.getElementById('csv-info').innerHTML = chartWin
+    ? `${lab} · ${fmtDT(chartWin.start)} – ${fmtDT(chartWin.end)} · <b>${n} ${chartWin.daily?'แถว (ค่าเฉลี่ยรายวัน)':'แถว'}</b><br><small>เปลี่ยนช่วงได้ที่ปุ่ม "ช่วงเวลา" เหนือกราฟ</small>`
+    : 'ยังไม่มีข้อมูล';
+  document.getElementById('csv-err').textContent='';
+  document.getElementById('csv-modal').style.display='flex';
+}
+function closeCsvModal(){ document.getElementById('csv-modal').style.display='none'; }
+function exportCSV(){
+  const cols=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
+  if(!cols.length){ document.getElementById('csv-err').textContent='กรุณาเลือกอย่างน้อย 1 ค่า'; return; }
+  const rows=windowRows();
+  if(!rows.length){ document.getElementById('csv-err').textContent='ไม่มีข้อมูลในช่วงเวลานี้'; return; }
+  const pad=n=>String(n).padStart(2,'0');
+  const ts=t=>{ const d=new Date(t); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`+(chartWin.daily?'':` ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`); };
+  let csv=(chartWin.daily?'วันที่ (ค่าเฉลี่ย)':'เวลา')+','+cols.map(p=>`${p.en}${p.unit?' ('+p.unit+')':''}`).join(',')+'\n';
+  rows.forEach(r=>{ csv+=ts(r.t)+','+cols.map(p=>{ const v=r.v[p.key]; return v==null||isNaN(v)?'':+(+v).toFixed(4); }).join(',')+'\n'; });
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`buoy-${chartRange}.csv`; a.click();
+  closeCsvModal();
 }
 
 /* เกจ WQI ครึ่งวงกลม (semicircle) พร้อมส่วนโค้งไล่ระดับ */
@@ -1025,54 +1232,6 @@ function renderFeed(){
     `<div class="fitem ${a.cls}"><span class="fi">${a.icon}</span><div>
       <div class="ft">${a.text}</div>
       <div class="fm">🕒 ${a.time} · ${a.meta}</div></div></div>`).join('');
-}
-
-/* ตารางประวัติ */
-function renderTable(){
-  if(!showTable)return;
-  const d=times.slice(-rangeN);
-  const rows=d.map((t,idx)=>{
-    const i=times.length-d.length+idx;
-    return `<tr><td>${t}</td>${PARAMS.map(p=>`<td>${history[p.key][i]==null?'—':fmtVal(p,history[p.key][i])}</td>`).join('')}</tr>`;
-  }).reverse().join('');
-  document.getElementById('tblwrap').innerHTML=
-    `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
-}
-/* ---------- ดาวน์โหลด CSV: popup เลือกค่า + ช่วงข้อมูล ---------- */
-function buildExportPick(){
-  document.getElementById('csv-params').innerHTML =
-    PARAMS.map(p=>`<label><input type="checkbox" id="exp-${p.key}" checked>${p.th}${p.unit?` <small style="color:var(--muted)">(${p.unit})</small>`:''}</label>`).join('');
-  const setAll=v=>PARAMS.forEach(p=>document.getElementById('exp-'+p.key).checked=v);
-  document.getElementById('csv-all').onclick=()=>setAll(true);
-  document.getElementById('csv-none').onclick=()=>setAll(false);
-  const m=document.getElementById('csv-modal');
-  document.getElementById('csv-cancel').onclick=closeCsvModal;
-  m.addEventListener('click',e=>{ if(e.target===m) closeCsvModal(); });          // คลิกพื้นหลัง = ปิด
-  document.addEventListener('keydown',e=>{ if(e.key==='Escape' && m.style.display==='flex') closeCsvModal(); });
-  document.getElementById('csv-go').onclick=exportCSV;
-}
-function openCsvModal(){
-  const nView=Math.min(rangeN,times.length);
-  document.getElementById('csv-nview').textContent=`(${nView} แถว)`;
-  document.getElementById('csv-nall').textContent=`(${times.length} แถว)`;
-  document.getElementById('csv-err').textContent='';
-  document.getElementById('csv-modal').style.display='flex';
-}
-function closeCsvModal(){ document.getElementById('csv-modal').style.display='none'; }
-function exportCSV(){
-  const cols=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
-  if(!cols.length){ document.getElementById('csv-err').textContent='กรุณาเลือกอย่างน้อย 1 ค่า'; return; }
-  const all=document.querySelector('input[name="csv-range"]:checked')?.value==='all';
-  const n=all?times.length:Math.min(rangeN,times.length), start=times.length-n;
-  let csv='เวลา,'+cols.map(p=>`${p.en}${p.unit?' ('+p.unit+')':''}`).join(',')+'\n';
-  for(let i=start;i<times.length;i++){
-    csv+=times[i]+','+cols.map(p=>{ const h=history[p.key], j=i-(times.length-h.length);   // history อาจสั้นกว่า times -> ชิดท้าย
-      return (j>=0 && h[j]!=null) ? h[j] : ''; }).join(',')+'\n';
-  }
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='buoy-history.csv'; a.click();
-  closeCsvModal();
 }
 
 
@@ -1250,6 +1409,7 @@ async function tick(){
   lastPushAt = lastDataAt;
   const stamp=new Date().toLocaleTimeString('th-TH');
   times.push(stamp); if(times.length>HISTORY_LEN)times.shift();
+  timesMs.push(isReal&&lastDataAt?lastDataAt:Date.now()); if(timesMs.length>HISTORY_LEN)timesMs.shift();
   PARAMS.forEach(p=>{
     let v=data[p.key];
     const hasNew=(v!=null && !isNaN(v));
@@ -1308,7 +1468,7 @@ function applyMode(){
   document.getElementById('mode-ico').textContent=firstEmoji(c.title);
   const note=document.getElementById('swim-note');
   if(note)note.textContent='⚠️ '+(c.labNote||'ประเมินจากค่าที่ทุ่นวัดได้เท่านั้น');
-  renderSwim(); rebadgeAll();
+  renderSwim(); rebadgeAll(); drawChart();   // สีเส้นกราฟตามเกณฑ์โหมดใหม่
 }
 async function setModeWeb(k){
   if(!MODE_CFG||!MODE_CFG.modes[k])return;
@@ -1391,6 +1551,7 @@ buildExportPick();
 buildMapSwitch();
 initAuth();
 initSource();
+if(CONFIG.mode!=='supabase') loadChartData();
 initModes();
 tick();
 setInterval(tick,2000);
