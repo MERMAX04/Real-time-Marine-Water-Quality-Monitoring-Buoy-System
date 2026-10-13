@@ -7,6 +7,9 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌊%3C/text%3E%3C/svg%3E">
 <!-- Supabase SDK (โหลดจาก CDN — ใช้เฉพาะโหมด supabase) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- แผนที่ Leaflet + OpenStreetMap (ค่าเริ่มต้น) — ถ้าโหลดไม่ได้จะถอยไปใช้ Google Maps อัตโนมัติ -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 <!-- Font: Bai Jamjuree (ไทย+ตัวเลข) จาก Google Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -217,7 +220,19 @@
   .chart-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:6px}
   .tab{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--glass-brd);
     background:transparent;color:var(--muted);cursor:pointer;transition:all .15s}
-  .tab.active{background:var(--accent);color:#04263a;border-color:var(--accent);font-weight:700}
+  .tab.active{background:var(--tc,var(--accent));color:#04263a;border-color:var(--tc,var(--accent));font-weight:700}
+  .tab.active::before{content:'✓ '}
+  .tab-all{border-style:dashed}
+  .chart-hint{font-size:11px;color:var(--muted);margin:0 2px 4px}
+  .tbar-left{display:flex;gap:12px;flex-wrap:wrap}
+  .chart-wrap{position:relative}
+  .chart-tip{position:absolute;top:8px;pointer-events:none;display:none;z-index:5;background:rgba(6,20,34,.95);
+    border:1px solid var(--glass-brd);border-radius:10px;padding:8px 10px;font-size:12px;color:var(--text);white-space:nowrap;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+  .chart-tip .tt{color:var(--muted);font-size:11px;margin-bottom:4px}
+  .chart-tip i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+  .chart-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;margin:4px 2px 0;color:#dcefff}
+  .chart-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .chart-legend span.rg{color:var(--muted)}
   .toolbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin:10px 0}
   .ranges{display:flex;gap:6px}
   .rbtn{font-size:11.5px;padding:5px 11px;border-radius:8px;border:1px solid var(--glass-brd);background:transparent;color:var(--muted);cursor:pointer}
@@ -252,8 +267,12 @@
     .gauge-num{font-size:34px}
     footer{font-size:11px}
   }
-  .map-box{position:relative;width:100%;height:230px;border-radius:12px;overflow:hidden;background:rgba(10,25,40,.5)}
+  .map-box{position:relative;width:100%;height:260px;border-radius:12px;overflow:hidden;background:rgba(10,25,40,.5)}
   .map-box iframe{width:100%;height:100%;border:0;display:none}
+  #lmap{position:absolute;inset:0;display:none;z-index:0}
+  .map-box .leaflet-container{background:#0b2235;font-family:inherit}
+  .map-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .map-src{display:flex;gap:6px;flex-wrap:wrap}
   #map-nogps{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 16px;color:var(--muted);font-weight:600;font-size:14px}
   .coords{display:flex;flex-direction:column;justify-content:center;gap:12px}
   .coords .kv{font-size:13px}.coords .kv b{color:var(--accent2);font-size:17px}
@@ -365,25 +384,33 @@
   <div class="glass panel" style="margin-bottom:22px">
     <h2>📈 ประวัติย้อนหลัง</h2>
     <div class="sub">แนวโน้มค่าที่วัดได้</div>
+    <div class="chart-hint">แตะเลือกได้หลายค่าเพื่อดูแนวโน้มเทียบกัน (เช่น DO คู่กับ pH) · ชี้/แตะบนกราฟเพื่อดูค่าจริง</div>
     <div class="chart-tabs" id="tabs"></div>
     <div class="toolbar">
-      <div class="ranges" id="ranges"></div>
+      <div class="tbar-left"><div class="ranges" id="ranges"></div><div class="ranges" id="ctypes"></div></div>
       <div style="display:flex;gap:7px">
         <button class="obtn" id="toggleTbl">📋 ตาราง</button>
         <button class="obtn" id="exportCsv">⬇️ CSV</button>
       </div>
     </div>
     <div class="export-pick" id="export-pick"></div>
-    <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
+    <div class="chart-wrap">
+      <svg id="chart" viewBox="0 0 820 280" preserveAspectRatio="none"></svg>
+      <div class="chart-tip" id="chart-tip"></div>
+    </div>
+    <div class="chart-legend" id="chart-legend"></div>
     <div class="tblwrap" id="tblwrap"></div>
   </div>
 
   <!-- Map / ตำแหน่งทุ่น -->
   <div class="map-wrap">
     <div class="glass panel">
-      <h2>🛰️ ตำแหน่งทุ่น</h2>
-      <div class="sub">พิกัดและสถานะการเชื่อมต่อ</div>
+      <div class="map-head">
+        <div><h2>🛰️ ตำแหน่งทุ่น</h2><div class="sub">พิกัดและสถานะการเชื่อมต่อ</div></div>
+        <div class="map-src" id="map-src"></div>
+      </div>
       <div class="map-box">
+        <div id="lmap"></div>
         <iframe id="map" title="ตำแหน่งทุ่น buoy-01" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
         <div id="map-nogps">📍 ยังไม่พบพิกัด GPS จากทุ่น</div>
       </div>
@@ -467,7 +494,13 @@ const PARAMS = [
 const HISTORY_LEN = 120;
 const history = {}, times = [];
 PARAMS.forEach(p => history[p.key] = []);
-let activeTab = PARAMS[0].key, rangeN = 60, showTable = false;
+let rangeN = 60, showTable = false;
+/* กราฟประวัติ: ค่าที่เลือก (หลายค่าได้) + ชนิดกราฟ — จำไว้ในเบราว์เซอร์ */
+let selKeys = [PARAMS[0].key], chartType = 'line';
+try{ const s=JSON.parse(localStorage.getItem('buoy-chart')||'{}');
+  if(Array.isArray(s.sel)){ const ok=s.sel.filter(k=>PARAMS.some(p=>p.key===k)); if(ok.length) selKeys=ok; }
+  if(['line','area','bar','scatter'].includes(s.type)) chartType=s.type; }catch(e){}
+function saveChartPref(){ try{ localStorage.setItem('buoy-chart', JSON.stringify({sel:selKeys,type:chartType})); }catch(e){} }
 const displayVal = {};   // ค่าที่กำลังแสดง (ไว้ทำอนิเมชันนับ)
 
 /* ---------- วิเคราะห์: คะแนนย่อยรายพารามิเตอร์ (0–100) + สถานะ ---------- */
@@ -730,10 +763,31 @@ function buildCards(){
       <div class="fore" id="fore-${p.key}"></div>
       <svg class="spark" id="spark-${p.key}" viewBox="0 0 200 36" preserveAspectRatio="none"></svg>
     </div>`).join('');
+  // แท็บค่า = สลับเลือก/ไม่เลือก (เลือกหลายค่าพร้อมกันได้, ต้องเหลืออย่างน้อย 1)
   document.getElementById('tabs').innerHTML = PARAMS.map(p=>
-    `<button class="tab ${p.key===activeTab?'active':''}" data-k="${p.key}">${p.th}</button>`).join('');
-  document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{activeTab=t.dataset.k;
-    document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.toggle('active',x.dataset.k===activeTab));drawChart();renderTable();});
+    `<button class="tab" data-k="${p.key}" style="--tc:${p.color}">${p.th}</button>`).join('')+
+    `<button class="tab tab-all" data-k="*">ทั้งหมด</button>`;
+  const syncTabs=()=>document.querySelectorAll('#tabs .tab').forEach(x=>x.classList.toggle('active',
+    x.dataset.k==='*' ? selKeys.length===PARAMS.length : selKeys.includes(x.dataset.k)));
+  document.querySelectorAll('#tabs .tab').forEach(t=>t.onclick=()=>{
+    const k=t.dataset.k;
+    if(k==='*') selKeys = selKeys.length===PARAMS.length ? [PARAMS[0].key] : PARAMS.map(p=>p.key);
+    else if(selKeys.includes(k)){ if(selKeys.length>1) selKeys=selKeys.filter(x=>x!==k); }
+    else selKeys=PARAMS.map(p=>p.key).filter(x=>x===k||selKeys.includes(x));   // คงลำดับตาม PARAMS
+    syncTabs(); saveChartPref(); drawChart();});
+  syncTabs();
+  // ชนิดกราฟ
+  document.getElementById('ctypes').innerHTML = [['line','📈 เส้น'],['area','🏔️ พื้นที่'],['bar','📊 แท่ง'],['scatter','⚬ จุด']]
+    .map(([t,l])=>`<button class="rbtn ${t===chartType?'active':''}" data-t="${t}">${l}</button>`).join('');
+  document.querySelectorAll('#ctypes .rbtn').forEach(b=>b.onclick=()=>{chartType=b.dataset.t;
+    document.querySelectorAll('#ctypes .rbtn').forEach(x=>x.classList.toggle('active',x.dataset.t===chartType));
+    saveChartPref(); drawChart();});
+  // ชี้/แตะบนกราฟ -> เส้นตั้ง + กล่องค่าจริงของทุกค่าที่เลือก
+  const svg=document.getElementById('chart');
+  const onPoint=e=>{ const pt=e.touches?e.touches[0]:e; chartHover(pt.clientX); };
+  svg.addEventListener('mousemove',onPoint); svg.addEventListener('touchstart',onPoint,{passive:true});
+  svg.addEventListener('touchmove',onPoint,{passive:true});
+  svg.addEventListener('mouseleave',chartHoverOff);
   document.getElementById('ranges').innerHTML = [[30,'ล่าสุด'],[60,'กลาง'],[120,'ทั้งหมด']]
     .map(([n,l])=>`<button class="rbtn ${n===rangeN?'active':''}" data-n="${n}">${l}</button>`).join('');
   document.querySelectorAll('#ranges .rbtn').forEach(b=>b.onclick=()=>{rangeN=+b.dataset.n;
@@ -765,28 +819,92 @@ function drawSpark(p){
     `<polyline fill="none" stroke="${p.color}" stroke-width="2" points="${pts}"/>`;
 }
 
+/* กราฟประวัติ: 1 ค่า = แกนค่าจริง + แถบช่วงที่ดี
+   หลายค่า = ปรับสเกลแต่ละค่าเป็น 0–100% ของช่วงที่เห็นในกราฟ เพื่อเทียบ "แนวโน้ม" (ค่าจริงดูได้จากการชี้) */
+let chartCtx = null;
+const CW=820, CH=280, CPL=44, CPR=16, CPT=30, CPB=30;
 function drawChart(){
-  const p=PARAMS.find(x=>x.key===activeTab); const all=history[p.key]; const d=all.slice(-rangeN);
-  const svg=document.getElementById('chart'), W=820,H=280,pad=38;
-  if(d.length<2){svg.innerHTML='';return;}
-  const mn=Math.min(...d),mx=Math.max(...d),r=(mx-mn)||1;
-  const X=i=>pad+i/(d.length-1)*(W-pad*2), Y=v=>H-pad-((v-mn)/r)*(H-pad*2);
-  const line=d.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
-  const area=`${pad},${H-pad} ${line} ${W-pad},${H-pad}`;
-  let grid='';
-  for(let g=0;g<=4;g++){const y=pad+g/4*(H-pad*2);const val=(mx-g/4*r);
-    grid+=`<line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="rgba(255,255,255,.07)"/>
-           <text x="6" y="${y+4}" fill="#8fb3cf" font-size="11">${val.toFixed(1)}</text>`;}
-  // แถบช่วง ideal (โซนสีเขียวจางๆ)
-  let ideal=''; const [ilo,ihi]=p.ideal;
-  if(ihi>=mn&&ilo<=mx){const yTop=Y(Math.min(ihi,mx)),yBot=Y(Math.max(ilo,mn));
-    ideal=`<rect x="${pad}" y="${yTop}" width="${W-pad*2}" height="${Math.max(0,yBot-yTop)}" fill="rgba(12,163,12,.10)"/>`;}
-  svg.innerHTML=`<defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="${p.color}" stop-opacity=".35"/><stop offset="100%" stop-color="${p.color}" stop-opacity="0"/></linearGradient></defs>
-    ${grid}${ideal}<polygon points="${area}" fill="url(#fill)"/>
-    <polyline points="${line}" fill="none" stroke="${p.color}" stroke-width="2.5"/>
-    <circle cx="${X(d.length-1)}" cy="${Y(d.at(-1))}" r="4" fill="${p.color}"/>
-    <text x="${W-pad}" y="20" fill="#eaf6ff" font-size="13" text-anchor="end">${p.th} (${p.unit}) · แถบเขียว = ช่วงที่ดี</text>`;
+  const svg=document.getElementById('chart'), legend=document.getElementById('chart-legend');
+  chartHoverOff();
+  const sel=PARAMS.filter(p=>selKeys.includes(p.key) && history[p.key].length>=2);
+  if(!sel.length){ chartCtx=null; legend.innerHTML='';
+    svg.innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">ยังมีข้อมูลไม่พอสำหรับวาดกราฟ</text>`; return; }
+  const n=Math.min(rangeN, Math.max(...sel.map(p=>history[p.key].length)));
+  const pad=(a)=>{ const t=a.slice(-n); return Array(n-t.length).fill(null).concat(t); };   // ชิดขวา = ล่าสุด
+  const tl=pad(times);
+  const multi=sel.length>1, plotH=CH-CPT-CPB, bw=(CW-CPL-CPR)/n;
+  const X=i=>CPL+bw*(i+.5);
+  const series=sel.map(p=>{
+    const vals=pad(history[p.key]), real=vals.filter(v=>v!=null);
+    const mn=Math.min(...real), mx=Math.max(...real), r=mx-mn;
+    const norm=v=> v==null?null : (multi ? (r?(v-mn)/r:.5) : (v-mn)/(r||1));
+    return {p, vals, mn, mx, norm, col:p.color};
+  });
+  const Y=f=>CPT+(1-f)*plotH;
+  // กริด + ป้ายแกน Y
+  let g='';
+  for(let k=0;k<=4;k++){ const f=1-k/4, y=Y(f);
+    const lab = multi ? Math.round(f*100)+'%' : fmtVal(sel[0], series[0].mn+f*((series[0].mx-series[0].mn)||1));
+    g+=`<line x1="${CPL}" y1="${y}" x2="${CW-CPR}" y2="${y}" stroke="rgba(255,255,255,.07)"/>
+        <text x="6" y="${y+4}" fill="#8fb3cf" font-size="11">${lab}</text>`; }
+  // ป้ายเวลาแกน X (5 จุด)
+  for(let k=0;k<5;k++){ const i=Math.round(k/4*(n-1)); if(!tl[i]) continue;
+    g+=`<text x="${X(i)}" y="${CH-8}" fill="#8fb3cf" font-size="10.5" text-anchor="${k===0?'start':k===4?'end':'middle'}">${tl[i]}</text>`; }
+  // แถบช่วงที่ดี (เฉพาะกราฟค่าเดียว)
+  if(!multi){ const s=series[0], [ilo,ihi]=s.p.ideal;
+    if(ihi>=s.mn && ilo<=s.mx){ const yT=Y(s.norm(Math.min(ihi,s.mx))), yB=Y(s.norm(Math.max(ilo,s.mn)));
+      g+=`<rect x="${CPL}" y="${yT}" width="${CW-CPL-CPR}" height="${Math.max(0,yB-yT)}" fill="rgba(12,163,12,.10)"/>`; } }
+  let defs='', body='';
+  series.forEach((s,si)=>{
+    const pts=s.vals.map((v,i)=>v==null?null:[X(i),Y(s.norm(v))]);
+    if(chartType==='bar'){
+      const gw=bw*.8, w=gw/series.length;
+      pts.forEach((q,i)=>{ if(!q) return; const x=X(i)-gw/2+si*w;
+        body+=`<rect x="${x.toFixed(1)}" y="${q[1].toFixed(1)}" width="${Math.max(.8,w-.4).toFixed(1)}" height="${(CT_BASE()-q[1]).toFixed(1)}" style="fill:${s.col}" opacity=".85"/>`; });
+      return;
+    }
+    if(chartType==='scatter'){
+      pts.forEach(q=>{ if(q) body+=`<circle cx="${q[0].toFixed(1)}" cy="${q[1].toFixed(1)}" r="2.8" style="fill:${s.col}"/>`; });
+      return;
+    }
+    // line / area: แบ่งช่วงตามจุดที่ไม่มีข้อมูล
+    const segs=[]; let cur=[];
+    pts.forEach(q=>{ if(q) cur.push(q); else if(cur.length){ segs.push(cur); cur=[]; } }); if(cur.length) segs.push(cur);
+    if(chartType==='area'){
+      defs+=`<linearGradient id="cf${si}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" style="stop-color:${s.col}" stop-opacity="${multi?.22:.35}"/><stop offset="100%" style="stop-color:${s.col}" stop-opacity="0"/></linearGradient>`;
+      segs.forEach(sg=>{ const l=sg.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+        body+=`<polygon points="${sg[0][0].toFixed(1)},${CT_BASE()} ${l} ${sg.at(-1)[0].toFixed(1)},${CT_BASE()}" fill="url(#cf${si})"/>`; });
+    }
+    segs.forEach(sg=>{ body+=`<polyline points="${sg.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ')}" fill="none" style="stroke:${s.col}" stroke-width="${multi?2:2.5}"/>`; });
+    const last=pts.filter(Boolean).at(-1); if(last) body+=`<circle cx="${last[0]}" cy="${last[1]}" r="4" style="fill:${s.col}"/>`;
+  });
+  const title = multi ? 'เทียบแนวโน้ม · สเกล 0–100% ของช่วงค่าแต่ละตัวในกราฟ'
+                      : `${sel[0].th}${sel[0].unit?' ('+sel[0].unit+')':''} · แถบเขียว = ช่วงที่ดี`;
+  svg.innerHTML=`<defs>${defs}</defs>${g}${body}
+    <line id="xh" x1="0" y1="${CPT}" x2="0" y2="${CH-CPB}" stroke="rgba(255,255,255,.45)" stroke-dasharray="3 3" display="none"/>
+    <text x="${CW-CPR}" y="18" fill="#eaf6ff" font-size="13" text-anchor="end">${title}</text>`;
+  chartCtx={series, tl, n, bw, X};
+  legend.innerHTML=series.map(s=>{ const lastV=s.vals.filter(v=>v!=null).at(-1);
+    return `<span><i style="background:${s.col}"></i>${s.p.th} <b>${fmtVal(s.p,lastV)}</b> ${s.p.unit}`+
+      (multi?` <span class="rg">(ช่วง ${fmtVal(s.p,s.mn)}–${fmtVal(s.p,s.mx)})</span>`:'')+`</span>`; }).join('');
+}
+function CT_BASE(){ return CH-CPB; }
+function chartHover(clientX){
+  if(!chartCtx) return;
+  const svg=document.getElementById('chart'), tip=document.getElementById('chart-tip'), rect=svg.getBoundingClientRect();
+  const {series,tl,n,bw,X}=chartCtx;
+  const xs=(clientX-rect.left)/rect.width*CW;
+  const i=Math.max(0, Math.min(n-1, Math.round((xs-CPL)/bw-.5)));
+  const xh=document.getElementById('xh'); if(xh){ xh.setAttribute('x1',X(i)); xh.setAttribute('x2',X(i)); xh.setAttribute('display','inline'); }
+  tip.innerHTML=`<div class="tt">🕒 ${tl[i]||'—'}</div>`+series.map(s=>
+    `<div><i style="background:${s.col}"></i>${s.p.th}: <b>${fmtVal(s.p,s.vals[i])}</b> ${s.vals[i]==null?'':s.p.unit}</div>`).join('');
+  tip.style.display='block';
+  const px=X(i)/CW*rect.width, tw=tip.offsetWidth;
+  tip.style.left=(px+12+tw>rect.width ? Math.max(0,px-12-tw) : px+12)+'px';
+}
+function chartHoverOff(){
+  const tip=document.getElementById('chart-tip'); if(tip) tip.style.display='none';
+  const xh=document.getElementById('xh'); if(xh) xh.setAttribute('display','none');
 }
 
 /* เกจ WQI ครึ่งวงกลม (semicircle) พร้อมส่วนโค้งไล่ระดับ */
@@ -930,6 +1048,7 @@ function updateLocation(){
     link.removeAttribute('href'); link.style.pointerEvents='none'; link.style.opacity='.55';
     link.style.color='#7a94a8'; link.textContent='📍 ยังไม่พบพิกัด GPS';
     if(iframe){ iframe.style.display='none'; iframe.removeAttribute('src'); iframe.dataset.q=''; }
+    document.getElementById('lmap').style.display='none'; lastLL=null;
     if(nogps) nogps.style.display='flex';
     return;
   }
@@ -939,13 +1058,48 @@ function updateLocation(){
   link.href='https://maps.google.com/?q='+q;
   link.style.pointerEvents='auto'; link.style.opacity='1'; link.style.color='#31c8ff';
   link.textContent='🗺️ เปิดใน Google Maps';
-  // Google Map ฝัง (ไม่ต้องใช้ API key) — โหลดใหม่เฉพาะตอนพิกัดเปลี่ยน
-  if(iframe && iframe.dataset.q!==q){
-    iframe.dataset.q=q;
-    iframe.src='https://maps.google.com/maps?q='+q+'&z=13&hl=th&output=embed';
-    iframe.style.display='block';
-  }
+  lastLL=[la,lo];
+  renderMap();
   if(nogps) nogps.style.display='none';
+}
+
+/* ---------- แผนที่: OpenStreetMap (Leaflet, ค่าเริ่มต้น) / ภาพดาวเทียม (Leaflet) / Google Maps ---------- */
+const MAP_SOURCES=[['osm','🗺️ OpenStreetMap'],['sat','🛰️ ดาวเทียม'],['google','Google Maps']];
+const TILES={
+  osm:{url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', opt:{maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}},
+  sat:{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', opt:{maxZoom:19, attribution:'Imagery &copy; Esri'}},
+};
+let mapSrc='osm', lastLL=null, lmap=null, ltile=null, lmark=null;
+try{ const m=localStorage.getItem('buoy-map'); if(MAP_SOURCES.some(s=>s[0]===m)) mapSrc=m; }catch(e){}
+function buildMapSwitch(){
+  const el=document.getElementById('map-src');
+  el.innerHTML=MAP_SOURCES.map(([k,l])=>`<button class="rbtn ${k===mapSrc?'active':''}" data-m="${k}">${l}</button>`).join('');
+  el.querySelectorAll('.rbtn').forEach(b=>b.onclick=()=>{ mapSrc=b.dataset.m;
+    el.querySelectorAll('.rbtn').forEach(x=>x.classList.toggle('active',x.dataset.m===mapSrc));
+    try{ localStorage.setItem('buoy-map',mapSrc); }catch(e){}
+    renderMap(); });
+}
+function renderMap(){
+  if(!lastLL) return;
+  const [la,lo]=lastLL, q=la.toFixed(6)+','+lo.toFixed(6);
+  const iframe=document.getElementById('map'), box=document.getElementById('lmap');
+  if(mapSrc==='google' || typeof L==='undefined'){          // Google (หรือโหลด Leaflet ไม่ได้)
+    box.style.display='none';
+    if(iframe.dataset.q!==q){ iframe.dataset.q=q; iframe.src='https://maps.google.com/maps?q='+q+'&z=13&hl=th&output=embed'; }
+    iframe.style.display='block';
+    return;
+  }
+  iframe.style.display='none'; box.style.display='block';
+  if(!lmap){
+    lmap=L.map(box,{scrollWheelZoom:false}).setView(lastLL,14);
+    lmark=L.circleMarker(lastLL,{radius:9,color:'#ffffff',weight:2,fillColor:'#31c8ff',fillOpacity:1}).addTo(lmap);
+  }
+  if(!ltile || ltile._src!==mapSrc){ if(ltile) lmap.removeLayer(ltile);
+    ltile=L.tileLayer(TILES[mapSrc].url, TILES[mapSrc].opt).addTo(lmap); ltile._src=mapSrc; }
+  lmap.invalidateSize();
+  const ll=L.latLng(la,lo);
+  if(!lmark.getLatLng().equals(ll)){ lmark.setLatLng(ll); lmap.panTo(ll); }   // เลื่อนตามเฉพาะตอนพิกัดเปลี่ยน
+  lmark.bindPopup(`<b>ทุ่น buoy-01</b><br>${q}`);
 }
 /* การ์ด "ไม่มีข้อมูล" (probe ไม่ได้ต่อ/ยังไม่ได้ค่า) */
 function renderNoData(p){
@@ -1159,6 +1313,7 @@ async function initModes(){
 
 buildCards();
 buildExportPick();
+buildMapSwitch();
 initAuth();
 initSource();
 initModes();

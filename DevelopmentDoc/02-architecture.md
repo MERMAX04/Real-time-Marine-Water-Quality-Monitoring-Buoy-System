@@ -50,7 +50,7 @@ GND ของทุกอุปกรณ์ต่อร่วมที่ GND BA
 | ฐานข้อมูล/คลาวด์ | **Supabase** (PostgreSQL + REST API อัตโนมัติ + Realtime + Edge Functions) | ได้ REST API จากตารางทันที ไม่ต้องเขียน backend เอง · Realtime ทำให้เว็บอัปเดตสด · มี RLS คุมสิทธิ์ · free tier พอสำหรับต้นแบบ |
 | ตรรกะฝั่งเซิร์ฟเวอร์ | Supabase Edge Functions (Deno / TypeScript) | รันบนคลาวด์ตลอด 24 ชม. โดยไม่ต้องดูแลเซิร์ฟเวอร์ · เก็บความลับ (token/รหัส) ใน secrets |
 | เว็บ | HTML/CSS/JavaScript ล้วน + supabase-js · โฮสต์บน **Render** (Static Site) | ไม่มีขั้นตอน build ดูแลง่าย · Render deploy อัตโนมัติเมื่อ push ขึ้น GitHub |
-| แผนที่ | Google Maps embed | แสดงตำแหน่งทุ่นตามพิกัด GPS จริงได้ทันที |
+| แผนที่ | Leaflet + OpenStreetMap (ค่าเริ่มต้น) · ภาพดาวเทียม Esri · Google Maps embed | ฟรี ไม่ต้องใช้ API key · ผู้ใช้สลับแหล่งแผนที่ได้ (จำค่าที่เลือกไว้) · ถ้าโหลด Leaflet ไม่ได้จะถอยไปใช้ Google อัตโนมัติ |
 | แจ้งเตือน/บอท | Telegram Bot API | ฟรี ตั้งค่าง่าย ไม่ต้องมี Official Account · รองรับ webhook |
 | แผนสำรอง | PHP 8 + MySQL | ติดตั้งบนเซิร์ฟเวอร์ทั่วไปของหน่วยงานได้ ถ้าไม่ใช้ Supabase |
 | เครื่องมือทดสอบเซนเซอร์ | Python 3 + pyserial | อ่านเซนเซอร์จากคอมพิวเตอร์ได้โดยตรง ใช้แยกปัญหาฮาร์ดแวร์ออกจากซอฟต์แวร์ |
