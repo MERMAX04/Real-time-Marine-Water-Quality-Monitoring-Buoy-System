@@ -418,7 +418,7 @@
     <div class="glass panel coords">
       <div class="kv">ละติจูด<br><b id="lat">—</b></div>
       <div class="kv">ลองจิจูด<br><b id="lon">—</b></div>
-      <div class="kv">สัญญาณ 4G<br><b id="sig">▂▄▆█ ดี</b></div>
+      <div class="kv">การเชื่อมต่อ<br><b id="sig">—</b></div>
       <div class="kv"><a id="maplink" href="#" target="_blank" rel="noopener" style="color:#7a94a8;text-decoration:none;font-weight:700;pointer-events:none;opacity:.55">📍 ยังไม่พบพิกัด GPS</a></div>
     </div>
   </div>
@@ -1022,9 +1022,14 @@ function relTime(s){
 }
 function updateStatus(){
   const conn=document.getElementById('conn'), txt=document.getElementById('conn-txt'), fresh=document.getElementById('fresh');
-  if(lastDataAt==null){ conn.className='pill st-off'; txt.textContent='ยังไม่มีข้อมูล'; fresh.textContent='อัปเดต: —'; return; }
+  const sig=document.getElementById('sig');
+  if(lastDataAt==null){ conn.className='pill st-off'; txt.textContent='ยังไม่มีข้อมูล'; fresh.textContent='อัปเดต: —';
+    sig.textContent='— ยังไม่มีข้อมูล'; sig.style.color='#7a94a8'; return; }
   const ageS=Math.max(0,Math.floor((Date.now()-lastDataAt)/1000));
   fresh.textContent='อัปเดต: '+relTime(ageS);
+  // การเชื่อมต่อของทุ่น (4G) ประเมินจากเวลาที่ได้รับข้อมูลล่าสุด — ทุ่นส่งทุก ~15 วิ
+  const [sTxt,sCol] = ageS<45 ? ['🟢 เชื่อมต่อปกติ','#4ade80'] : ageS<300 ? ['🟠 ข้อมูลค้าง','#fab219'] : ['🔴 ขาดการเชื่อมต่อ','#ff6b6b'];
+  sig.textContent=sTxt; sig.style.color=sCol;
   // ทุ่นส่งทุก ~15 วิ -> <45วิ = สด, 45วิ–5นาที = สะดุด, >5นาที = ออฟไลน์
   const sensorBad = (CONFIG.mode!=='mock' && sbLatest && sbLatest.sensor_ok===false);
   if(ageS<45){
@@ -1055,9 +1060,7 @@ function updateLocation(){
   document.getElementById('lat').textContent=Math.abs(la).toFixed(6)+'° '+(la>=0?'N':'S');
   document.getElementById('lon').textContent=Math.abs(lo).toFixed(6)+'° '+(lo>=0?'E':'W');
   const q=la.toFixed(6)+','+lo.toFixed(6);
-  link.href='https://maps.google.com/?q='+q;
   link.style.pointerEvents='auto'; link.style.opacity='1'; link.style.color='#31c8ff';
-  link.textContent='🗺️ เปิดใน Google Maps';
   lastLL=[la,lo];
   renderMap();
   if(nogps) nogps.style.display='none';
@@ -1083,6 +1086,12 @@ function renderMap(){
   if(!lastLL) return;
   const [la,lo]=lastLL, q=la.toFixed(6)+','+lo.toFixed(6);
   const iframe=document.getElementById('map'), box=document.getElementById('lmap');
+  // ลิงก์ "เปิดแผนที่" ตามแหล่งแผนที่ที่เลือก
+  const link=document.getElementById('maplink');
+  if(mapSrc==='osm'){ link.href=`https://www.openstreetmap.org/?mlat=${la.toFixed(6)}&mlon=${lo.toFixed(6)}#map=16/${la.toFixed(6)}/${lo.toFixed(6)}`;
+    link.textContent='🗺️ เปิดใน OpenStreetMap'; }
+  else if(mapSrc==='sat'){ link.href='https://maps.google.com/?q='+q+'&t=k'; link.textContent='🛰️ เปิดภาพดาวเทียม'; }
+  else { link.href='https://maps.google.com/?q='+q; link.textContent='🗺️ เปิดใน Google Maps'; }
   if(mapSrc==='google' || typeof L==='undefined'){          // Google (หรือโหลด Leaflet ไม่ได้)
     box.style.display='none';
     if(iframe.dataset.q!==q){ iframe.dataset.q=q; iframe.src='https://maps.google.com/maps?q='+q+'&z=13&hl=th&output=embed'; }
