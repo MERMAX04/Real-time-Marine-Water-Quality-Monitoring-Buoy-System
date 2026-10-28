@@ -8,6 +8,8 @@ config.local.php
 *.local.ps1
 *.local.sh
 set-secrets.local.*
+# secrets ของ Edge Functions ตอนรัน local (ตัวอย่างอยู่ที่ supabase/.env.local.example — อันนั้น commit ได้)
+supabase/.env.local
 
 # ===== ไฟล์ระบบ/ชั่วคราว =====
 .DS_Store

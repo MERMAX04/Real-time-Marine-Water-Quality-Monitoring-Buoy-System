@@ -106,3 +106,55 @@ supabase functions deploy admin          --no-verify-jwt
 
 ### แผนสำรอง (PHP + MySQL)
 ดูขั้นตอนใน [`4-server-backup/README.md`](../4-server-backup/README.md) และวิธีสลับระบบใน [`SWITCHING-GUIDE.md`](../SWITCHING-GUIDE.md)
+
+## 5.4 รันแบบ Local (Supabase CLI + Docker)
+จำลอง backend ทั้งชุด (DB + REST + Realtime + Edge Functions + Studio) บนเครื่องตัวเอง ไว้พัฒนา/ทดสอบโดยไม่แตะ cloud
+**cloud ยังเป็น production เหมือนเดิม** — local กับ cloud แยกกันคนละฐานข้อมูล
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `supabase/config.toml` | ตั้งค่า local (`project_id = "buoy-local"`, พอร์ต, `verify_jwt = false` ทั้ง 3 ฟังก์ชันเหมือน cloud) |
+| `supabase/migrations/20261014120000_init.sql` | schema = 3 ไฟล์ SQL ของ cloud รวมกัน (+ GRANT ที่ local ต้องมี) — **แก้ schema ต้องแก้ให้ตรงกันทั้งสองที่** |
+| `supabase/seed.sql` | ข้อมูลตั้งต้น: `mode=recreation` + ค่าจำลองย้อนหลัง 3 ชม. (ทุก 15 วิ) + trigger แทน Database Webhook → `telegram-alert` (**local เท่านั้น**) |
+| `supabase/.env.local.example` | secrets ของ Edge Functions แบบ local (ค่าปลอดภัย) → คัดลอกเป็น `supabase/.env.local` |
+| `1-sensor-tools/simulate_buoy.py` | ทุ่นจำลอง POST ค่าทุก 15 วิ (JSON เดียวกับ ESP32) |
+
+### เตรียม (ครั้งเดียว)
+1. ติดตั้ง **Docker Desktop** แล้วเปิดไว้ (รอจน Engine running) + Supabase CLI (มีแล้วจากขั้นที่ 2)
+2. คัดลอก secrets ตัวอย่าง: `copy supabase\.env.local.example supabase\.env.local`
+
+### รัน (จาก root ของ repo)
+```bash
+supabase start                 # ครั้งแรกโหลด image นานหน่อย · สร้าง DB + รัน migrations + seed.sql
+supabase status                # ดู URL และ key (anon/publishable, service_role/secret) · -o env = แบบตัวแปร
+supabase functions serve --env-file supabase/.env.local    # เปิด Edge Functions (ค้างหน้าต่างนี้ไว้ ดู log ที่นี่)
+```
+| บริการ | URL (ค่าเริ่มต้น) |
+|---|---|
+| API (REST / Realtime / Functions) | `http://127.0.0.1:54321` · ฟังก์ชัน `http://127.0.0.1:54321/functions/v1/<ชื่อ>` |
+| Studio (ดูตาราง/รัน SQL) | `http://127.0.0.1:54323` |
+| Postgres | `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+
+ส่งค่าจำลอง + เปิดเว็บ (อีกหน้าต่าง):
+```bash
+cd 1-sensor-tools && py simulate_buoy.py          # ทุก 15 วิ · --once ครั้งเดียว · --red ทดสอบเตือน (DO ต่ำ)
+cd 2-dashboard && py -m http.server 8000          # เปิด http://localhost:8000
+```
+> เปิดเว็บที่ `localhost` / `127.0.0.1` แล้วแดชบอร์ดจะใช้ Supabase local ให้อัตโนมัติ (เปิดจาก onrender.com = cloud)
+
+คำสั่งอื่นที่ใช้บ่อย:
+```bash
+supabase db reset              # ล้าง DB local แล้วรัน migrations + seed.sql ใหม่ (ใช้หลังแก้ schema/seed)
+supabase stop                  # ปิดทั้งหมด (ข้อมูลยังอยู่ใน volume) · --no-backup = ลบทิ้ง
+```
+
+### ทดสอบฟังก์ชันแบบ local
+- **admin:** `curl -X POST http://127.0.0.1:54321/functions/v1/admin -H "content-type: application/json" -d "{\"action\":\"login\",\"user\":\"admin\",\"pass\":\"localdev123\"}"` → `{"ok":true,"token":...}`
+- **telegram-alert:** `py simulate_buoy.py --once --red` → trigger ใน DB ยิงไปที่ฟังก์ชันเอง ดู log ในหน้าต่าง `functions serve` (ไม่มีผู้สมัคร/token ปลอม = ไม่มีข้อความจริงออก) · ผลฝั่ง DB: Studio → SQL `select * from net._http_response order by created desc limit 5;`
+- **telegram-bot:** ยิงจำลองข้อความด้วย `curl` ใส่ header `x-telegram-bot-api-secret-token: local-hook-secret` และ body แบบ Telegram update (`{"message":{"chat":{"id":111111111},"text":"/status"}}`)
+
+### ข้อจำกัดของ local
+- **ทุ่นจริง (4G)** ส่งเข้า `127.0.0.1` ไม่ได้ — firmware ชี้ cloud (`SB_HOST`) เสมอ · ทดสอบ local ใช้ `simulate_buoy.py` หรือ `sensor_to_supabase.py` (แก้ `SB_URL`/`SB_ANON`)
+- **Telegram webhook** เรียก localhost ไม่ได้ — ต้องใช้ tunnel (เช่น ngrok / cloudflared) + บอททดสอบแยก **อย่า** `setWebhook` บอท production มาที่เครื่อง
+- Database Webhook ของ cloud ไม่ถูก export → local ใช้ trigger ใน `seed.sql` แทน (ชี้ `http://kong:8000/...` ในเครือข่าย docker)
+- ข้อมูล local/cloud ไม่ซิงก์กัน · ห้าม `supabase db push --include-seed` (seed เป็นข้อมูลจำลอง)

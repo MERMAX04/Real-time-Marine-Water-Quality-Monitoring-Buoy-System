@@ -20,6 +20,11 @@ Telegram (แจ้งเตือน + คำสั่งแชท), การ�
 | `functions/_shared/water-modes.json` | **config กลาง** เกณฑ์ 6 โหมด (คัดลอกไป `2-dashboard/` และ `4-server-backup/lib/`) |
 | `functions/_shared/water-eval.ts` | ตรรกะประเมิน `evalWater` + Model A (วิกฤต→แดง / เฝ้าระวัง→ส้ม) + get/setMode |
 | `functions/_shared/telegram.ts` | ส่งข้อความ + จัดรูป /status /swim + สถานะทุ่น (ใช้ร่วม) |
+| `config.toml` · `migrations/` · `seed.sql` · `.env.local.example` | **รันแบบ Local** (Supabase CLI + Docker) — ไม่กระทบ cloud |
+
+> 💻 **รันทั้งชุดบนเครื่องตัวเอง (Local dev):** `supabase start` → `supabase functions serve --env-file supabase/.env.local` → `py 1-sensor-tools/simulate_buoy.py`
+> ขั้นตอนเต็ม + ข้อจำกัด ดู [`DevelopmentDoc/05-setup-configuration.md` หัวข้อ 5.4](../DevelopmentDoc/05-setup-configuration.md#54-รันแบบ-local-supabase-cli--docker)
+> ⚠️ `migrations/…_init.sql` สำเนาจาก `schema-*.sql` + `3-supabase-primary/schema.sql` — แก้ schema ต้องแก้ให้ตรงกันทั้งสองที่
 
 ---
 

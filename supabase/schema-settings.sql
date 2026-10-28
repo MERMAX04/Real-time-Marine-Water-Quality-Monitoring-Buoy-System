@@ -4,6 +4,7 @@
 --   - เว็บ (anon key)  : อ่านได้อย่างเดียว · เปลี่ยนโหมดผ่าน Edge Function 'admin' หลังล็อกอิน /admin
 --   - Telegram /mode   : เปลี่ยนได้เฉพาะแอดมิน (เช็คจาก env TG_ADMINS ในโค้ด)
 --   - Edge Functions   : ใช้ service_role อ่าน/เขียน (bypass RLS)
+-- ⚠️ local dev: เนื้อหาไฟล์นี้ถูกรวมไว้ใน supabase/migrations/20261014120000_init.sql — แก้ที่นี่ต้องแก้ที่นั่นด้วย
 -- =========================================================================
 
 create table if not exists public.app_settings (

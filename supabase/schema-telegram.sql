@@ -3,6 +3,7 @@
 -- ระบบแจ้งเตือน/บอท Telegram ย้ายมาทำ "ฝั่งบก" ด้วย Edge Functions:
 --   tg_subscribers = รายชื่อ chat_id คนที่กด /start (แทน NVS บน ESP32)
 --   alert_state    = เวลาแจ้งเตือนล่าสุดต่อชนิด (กันเตือนซ้ำ = cooldown แบบไม่ต้องมี state ในโค้ด)
+-- ⚠️ local dev: เนื้อหาไฟล์นี้ถูกรวมไว้ใน supabase/migrations/20261014120000_init.sql — แก้ที่นี่ต้องแก้ที่นั่นด้วย
 -- =========================================================================
 
 create table if not exists public.tg_subscribers (

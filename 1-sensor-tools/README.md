@@ -16,6 +16,7 @@ py -m pip install pyserial
 | **`read_sensor.py`** ⭐ | **ตัวหลัก** — สแกน COM port อัตโนมัติ + อ่าน 7 ค่า + ถอด float + debug ทุกขั้น (บอกสาเหตุเมื่ออ่านไม่ได้) |
 | **`rs485_console.py`** | คอนโซลโต้ตอบ — พิมพ์คำสั่ง Modbus เอง ดู TX/RX ดิบ (เจาะทีละ register) |
 | **`sensor_to_supabase.py`** | "สะพาน" — PC อ่าน sensor แล้วส่งขึ้น Supabase (พิสูจน์ทั้ง pipeline โดยไม่ต้องมี ESP32) |
+| **`simulate_buoy.py`** | "ทุ่นจำลอง" — ส่งค่าปลอม (random walk) ทุก 15 วิ ด้วย JSON แบบเดียวกับ ESP32 · ค่าเริ่มต้นส่งเข้า **Supabase Local** (ไม่ต้องมี sensor/pyserial) |
 | `SENSOR-PROTOCOL.md` | สรุป protocol จากคู่มือ (การต่อสาย / register / float order / CRC) |
 
 ## การต่อสาย (จุดที่ทำให้ "ไม่ตอบ")
@@ -28,6 +29,7 @@ py read_sensor.py COM9            # ระบุพอร์ตตรงๆ
 py read_sensor.py COM9 --scan     # ถ้าเงียบ ให้ไล่ baud/address อื่นด้วย
 py rs485_console.py COM9          # คอนโซลพิมพ์คำสั่งเอง (all / do / do% / temp / ph / sal / cond / turb / status)
 py sensor_to_supabase.py COM9 5   # อ่านค่าจริงส่งขึ้น Supabase ทุก 5 วิ
+py simulate_buoy.py               # ทุ่นจำลอง → Supabase Local (--once ครั้งเดียว · --red ทดสอบเตือน)
 ```
 
 ## อ่านผล (read_sensor.py บอกทีละขั้น)
