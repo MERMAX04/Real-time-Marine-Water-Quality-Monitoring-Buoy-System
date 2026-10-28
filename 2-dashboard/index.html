@@ -234,6 +234,11 @@
   .seg .rbtn+.rbtn{border-left:1px solid var(--glass-brd)}
   .seg .rbtn.active{border-color:var(--glass-brd)}
   .span-info{font-size:11px;color:var(--muted)}
+  .day-pick{background:rgba(255,255,255,.06);border:1px solid var(--glass-brd);border-radius:8px;color:var(--text);
+    padding:5px 8px;font:inherit;font-size:12px;color-scheme:dark;cursor:pointer}
+  .day-pick:focus{outline:none;border-color:var(--accent2)}
+  #day-live.active{background:rgba(49,200,255,.16);color:var(--accent);border-color:var(--accent)}
+  .seg .rbtn:disabled{opacity:.35;cursor:not-allowed}
   .csv-box{width:min(460px,92vw)}
   .csv-sec{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;font-weight:700;color:#dcefff;margin-top:4px}
   .csv-sec a{font-weight:400;font-size:12px;color:var(--accent2);cursor:pointer}
@@ -342,6 +347,7 @@
       <span class="pill st-on" id="conn"><span class="dot"></span> <span id="conn-txt">กำลังเชื่อมต่อ…</span></span>
       <span class="pill">📍 <span id="loc">สถานี buoy-01</span></span>
       <span class="pill">🕒 <span id="fresh">อัปเดต: —</span></span>
+      <span class="pill" id="db-badge" title="กำลังต่อ Supabase ในเครื่อง (ข้อมูลทดสอบ ไม่ใช่ทุ่นจริง)" style="display:none;color:var(--warning)">🧪 LOCAL DB</span>
       <button class="logout-corner" id="logout-btn" title="ออกจากระบบ" aria-label="ออกจากระบบ" style="display:none">🚪</button>
     </div>
   </header>
@@ -407,6 +413,7 @@
     </div>
     <div class="toolbar">
       <div class="tbar-left">
+        <div class="ctrl" id="day-ctrl"><span class="hist-lbl">วันที่</span><input type="date" id="day-pick" class="day-pick" title="เลือกวันที่ต้องการดูข้อมูลย้อนหลัง"><button class="rbtn" id="day-live" title="กลับไปดูข้อมูลล่าสุดแบบเรียลไทม์">ล่าสุด (สด)</button></div>
         <div class="ctrl"><span class="hist-lbl">ช่วงข้อมูล</span><div class="seg" id="ranges"></div><span class="span-info" id="range-span"></span></div>
         <div class="ctrl"><span class="hist-lbl">รูปแบบกราฟ</span><div class="seg" id="ctypes"></div></div>
       </div>
@@ -445,7 +452,7 @@
   </div>
 
   <footer>
-    โปรเจคจบ · แหล่งข้อมูล: <b>Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
+    โปรเจคจบ · แหล่งข้อมูล: <b id="src-txt">Supabase (realtime)</b> — สลับ mock/server ได้ที่ <code>CONFIG.mode</code><br>
     ระบบวิเคราะห์ในเบราว์เซอร์: WQI ถ่วงน้ำหนัก · พยากรณ์ Holt smoothing · จับผิดปกติ z-score · แปลผลเป็นเหตุการณ์ · ตรวจสุขภาพ sensor
   </footer>
 </div>
@@ -491,17 +498,42 @@
    'supabase' = แผนหลัก (realtime) | 'server' = ทางเลือก | 'mock' = ค่าปลอมเดโม
    ดูวิธีสลับละเอียดที่ SWITCHING-GUIDE.md
    ========================================================================= */
-const CONFIG = {
-  mode: 'supabase',      // 'mock' = เดโม (ข้อมูลขยับ+การวิเคราะห์) | 'supabase' = ข้อมูลจริง (ต่อ Supabase แล้ว)
-  device: 'buoy-01',
-  // ---- โหมด 'supabase' (แผนหลัก) : เอาค่าจาก Supabase > Project Settings > API ----
-  supabase: {
+/* ---- เลือก backend Supabase: 'cloud' (ของจริง) | 'local' (Supabase CLI + Docker สำหรับพัฒนา) ----
+   เปิดจาก localhost / 127.0.0.1 = local อัตโนมัติ · ที่อื่น (Render) = cloud เหมือนเดิม
+   บังคับเองได้ด้วย ?db=local หรือ ?db=cloud (เช่น รันหน้าเว็บในเครื่องแต่อยากดูข้อมูลจริง) */
+const SB_BACKENDS = {
+  // cloud: เอาค่าจาก Supabase > Project Settings > API
+  cloud: {
     url:     "https://jjbrgolulggksxnuicgg.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqYnJnb2x1bGdna3N4bnVpY2dnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNjc0ODAsImV4cCI6MjA5ODg0MzQ4MH0.0coKRuYMMOwLq9yJFsOff99ya9RBwyLBzqxN2YU1JWg",
   },
+  // local: anon key = ค่า default สาธารณะของ Supabase CLI (ใช้เดโมเท่านั้น)
+  //   ถ้า `supabase status` แสดง API URL / anon key ต่างจากนี้ ให้แก้ 2 บรรทัดนี้ตามนั้น
+  local: {
+    url:     "http://127.0.0.1:54321",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0",
+  },
+};
+const DB_TARGET = (()=>{
+  const q=(new URLSearchParams(location.search).get('db')||'').toLowerCase();
+  if(q==='local'||q==='cloud') return q;
+  return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? 'local' : 'cloud';
+})();
+
+const CONFIG = {
+  mode: 'supabase',      // 'mock' = เดโม (ข้อมูลขยับ+การวิเคราะห์) | 'supabase' = ข้อมูลจริง (ต่อ Supabase แล้ว)
+  device: 'buoy-01',
+  // ---- โหมด 'supabase' (แผนหลัก) : url/anonKey มาจาก backend ที่เลือก (DB_TARGET ด้านบน) ----
+  supabase: SB_BACKENDS[DB_TARGET],
   apiBase: 'https://server-อาจารย์.ac.th/buoy/api',
   staleSeconds: 900,   // ถ้าไม่มีข้อมูลใหม่เกินเท่านี้ = "ข้อมูลค้าง" (mock อัปเดตทุก 2 วิ จึงออนไลน์เสมอ)
 };
+
+/* ต่อ local อยู่ → โชว์ป้าย "LOCAL DB" + บอกใน footer กันสับสนกับข้อมูลทุ่นจริง (cloud ไม่โชว์อะไรเพิ่ม) */
+if(CONFIG.mode==='supabase' && DB_TARGET==='local'){
+  document.getElementById('db-badge').style.display='';
+  document.getElementById('src-txt').textContent='Supabase LOCAL ('+CONFIG.supabase.url+') — ข้อมูลทดสอบ';
+}
 
 /* สมมติในการใช้งานจริงเก็บข้อมูลทุกกี่นาที (ใช้แปลงคำพยากรณ์เป็น "นาที") */
 const SAMPLE_MIN = 5;
@@ -535,7 +567,63 @@ const PARAMS = [
 const HISTORY_LEN = 120;
 const history = {}, times = [];
 PARAMS.forEach(p => history[p.key] = []);
-let rangeN = 60, showTable = false;
+let rangeN = 60, showTable = false, sbClient = null;
+/* ดูย้อนหลังรายวัน: null = ข้อมูลล่าสุดแบบสด · {date, H, T (ย่อสำหรับกราฟ), fullH, fullT (ครบทุกแถว)} */
+let dayMode = null;
+const DAY_PTS = 240;   // จำนวนจุดสูงสุดที่วาดในกราฟรายวัน (เกินนี้เฉลี่ยรวมเป็นช่วงๆ)
+function chartSrc(full){
+  if(dayMode) return full ? {H:dayMode.fullH, T:dayMode.fullT, n:dayMode.fullT.length}
+                          : {H:dayMode.H, T:dayMode.T, n:dayMode.T.length};
+  return {H:history, T:times, n:rangeN};
+}
+function fmtDayTH(d){ return new Date(d+'T00:00:00').toLocaleDateString('th-TH',{day:'numeric',month:'short',year:'numeric'}); }
+/* โหลดข้อมูลทั้งวันของวันที่เลือก (ตามเวลาไทย 00:00–24:00) จาก Supabase */
+async function loadDay(date){
+  const span=document.getElementById('range-span');
+  if(!sbClient){ span.textContent='ดูย้อนหลังรายวันได้เฉพาะโหมด supabase'; return; }
+  span.textContent='กำลังโหลดข้อมูลวันที่ '+fmtDayTH(date)+' …';
+  const from=new Date(date+'T00:00:00'), to=new Date(from.getTime()+864e5), rows=[];
+  for(let off=0; off<20000; off+=1000){                       // Supabase คืนครั้งละไม่เกิน 1000 แถว
+    const {data,error}=await sbClient.from('readings').select('created_at,do_val,do_pct,temp,ph,sal,cond,turb,sensor_ok')
+      .eq('device',CONFIG.device).gte('created_at',from.toISOString()).lt('created_at',to.toISOString())
+      .order('created_at',{ascending:true}).range(off,off+999);
+    if(error){ span.textContent='โหลดข้อมูลไม่สำเร็จ'; console.warn(error); return; }
+    rows.push(...data); if(data.length<1000) break;
+  }
+  if(document.getElementById('day-pick').value!==date) return;   // ผู้ใช้เปลี่ยนวันระหว่างโหลด
+  // ตัดแถว heartbeat และแถวที่เซนเซอร์คืนค่า 0 ทั้งชุด (pH/อุณหภูมิ 0 ในน้ำทะเลเป็นไปไม่ได้)
+  const ok=rows.filter(r=>r.sensor_ok!==false && !((+r.temp===0||r.temp==null)&&(+r.ph===0||r.ph==null))).map(r=>({t:r.created_at,m:mapRow(r)}));
+  const num=v=>(v==null||isNaN(Number(v)))?null:Number(v);
+  const fullT=ok.map(r=>new Date(r.t).toLocaleTimeString('th-TH')), fullH={};
+  PARAMS.forEach(p=>fullH[p.key]=ok.map(r=>num(r.m[p.key])));
+  // กราฟ: ถ้าจุดเยอะเกิน ให้เฉลี่ยรวมเป็นช่วงเท่าๆ กัน (ตาราง/CSV ยังใช้ครบทุกแถว)
+  const step=Math.max(1,Math.ceil(ok.length/DAY_PTS)), T=[], H={};
+  PARAMS.forEach(p=>H[p.key]=[]);
+  for(let i=0;i<ok.length;i+=step){
+    T.push(fullT[i]);
+    PARAMS.forEach(p=>{ const seg=fullH[p.key].slice(i,i+step).filter(v=>v!=null);
+      H[p.key].push(seg.length?seg.reduce((a,b)=>a+b,0)/seg.length:null); });
+  }
+  dayMode={date,H,T,fullH,fullT};
+  syncDayUI();
+  if(!ok.length){ document.getElementById('chart').innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">ไม่มีข้อมูลในวันที่ ${fmtDayTH(date)}</text>`;
+    span.textContent=fmtDayTH(date)+' · ไม่มีข้อมูล'; document.getElementById('chart-legend').innerHTML=''; chartCtx=null; return; }
+  drawChart(); renderTable();
+}
+function syncDayUI(){
+  document.getElementById('day-live').classList.toggle('active',!dayMode);
+  document.querySelectorAll('#ranges .rbtn').forEach(b=>b.disabled=!!dayMode);   // ดูรายวัน = ทั้งวันเสมอ
+}
+function buildDayPicker(){
+  const pick=document.getElementById('day-pick');
+  if(CONFIG.mode!=='supabase'){ document.getElementById('day-ctrl').style.display='none'; return; }
+  const pad=n=>String(n).padStart(2,'0'), now=new Date();
+  pick.max=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  pick.onchange=()=>{ if(pick.value) loadDay(pick.value); else backToLive(); };
+  document.getElementById('day-live').onclick=()=>{ pick.value=''; backToLive(); };
+  syncDayUI();
+}
+function backToLive(){ dayMode=null; syncDayUI(); drawChart(); renderTable(); }
 /* กราฟประวัติ: ค่าที่เลือก (หลายค่าได้) + ชนิดกราฟ — จำไว้ในเบราว์เซอร์ */
 let selKeys = [PARAMS[0].key], chartType = 'line';
 try{ const s=JSON.parse(localStorage.getItem('buoy-chart')||'{}');
@@ -737,7 +825,7 @@ function seedHistory(rows){
 
 function initSource(){
   if (CONFIG.mode === 'supabase'){
-    const sb = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
+    const sb = sbClient = supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey);
     document.getElementById('loc').textContent = CONFIG.device;
     // 1) ดึงย้อนหลังมาเติมกราฟ/ตาราง (ไม่ใช่แค่แถวเดียว)
     sb.from('readings').select('*').eq('device',CONFIG.device)
@@ -868,18 +956,23 @@ const CW=820, CH=280, CPL=44, CPR=16, CPT=30, CPB=30;
 function drawChart(){
   const svg=document.getElementById('chart'), legend=document.getElementById('chart-legend');
   chartHoverOff();
-  const sel=PARAMS.filter(p=>selKeys.includes(p.key) && history[p.key].length>=2);
+  const {H,T,n:nMax}=chartSrc();
+  const sel=PARAMS.filter(p=>selKeys.includes(p.key) && H[p.key].length>=2);
   if(!sel.length){ chartCtx=null; legend.innerHTML='';
-    svg.innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">ยังมีข้อมูลไม่พอสำหรับวาดกราฟ</text>`; return; }
-  const n=Math.min(rangeN, Math.max(...sel.map(p=>history[p.key].length)));
+    svg.innerHTML=`<text x="${CW/2}" y="${CH/2}" fill="#8fb3cf" font-size="14" text-anchor="middle">${dayMode?'ไม่มีข้อมูลในวันที่ '+fmtDayTH(dayMode.date):'ยังมีข้อมูลไม่พอสำหรับวาดกราฟ'}</text>`;
+    if(dayMode) document.getElementById('range-span').textContent=fmtDayTH(dayMode.date)+' · ไม่มีข้อมูล';
+    return; }
+  const n=Math.min(nMax, Math.max(...sel.map(p=>H[p.key].length)));
   const pad=(a)=>{ const t=a.slice(-n); return Array(n-t.length).fill(null).concat(t); };   // ชิดขวา = ล่าสุด
-  const tl=pad(times);
+  const tl=pad(T);
   const t0=tl.find(Boolean), t1=tl.at(-1);
-  document.getElementById('range-span').textContent = t0 ? `${n} ค่า · ${t0} – ${t1}` : '';
+  document.getElementById('range-span').textContent = !t0 ? '' : dayMode
+    ? `${fmtDayTH(dayMode.date)} · ${dayMode.fullT.length.toLocaleString('en-US')} ค่า · ${dayMode.fullT[0]} – ${dayMode.fullT.at(-1)}`+(dayMode.fullT.length>DAY_PTS?' (กราฟเฉลี่ยเป็นช่วงๆ)':'')
+    : `${n} ค่า · ${t0} – ${t1}`;
   const multi=sel.length>1, plotH=CH-CPT-CPB, bw=(CW-CPL-CPR)/n;
   const X=i=>CPL+bw*(i+.5);
   const series=sel.map(p=>{
-    const vals=pad(history[p.key]), real=vals.filter(v=>v!=null);
+    const vals=pad(H[p.key]), real=vals.filter(v=>v!=null);
     const mn=Math.min(...real), mx=Math.max(...real), r=mx-mn;
     const norm=v=> v==null?null : (multi ? (r?(v-mn)/r:.5) : (v-mn)/(r||1));
     return {p, vals, mn, mx, norm, col:p.color};
@@ -1030,10 +1123,12 @@ function renderFeed(){
 /* ตารางประวัติ */
 function renderTable(){
   if(!showTable)return;
-  const d=times.slice(-rangeN);
+  const {H,T,n}=chartSrc(true);
+  const d=T.slice(-n);
   const rows=d.map((t,idx)=>{
-    const i=times.length-d.length+idx;
-    return `<tr><td>${t}</td>${PARAMS.map(p=>`<td>${history[p.key][i]==null?'—':fmtVal(p,history[p.key][i])}</td>`).join('')}</tr>`;
+    const i=T.length-d.length+idx;
+    return `<tr><td>${t}</td>${PARAMS.map(p=>{ const h=H[p.key], j=i-(T.length-h.length), v=j>=0?h[j]:null;
+      return `<td>${v==null?'—':fmtVal(p,v)}</td>`; }).join('')}</tr>`;
   }).reverse().join('');
   document.getElementById('tblwrap').innerHTML=
     `<table><thead><tr><th>เวลา</th>${PARAMS.map(p=>`<th>${p.th}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
@@ -1052,9 +1147,9 @@ function buildExportPick(){
   document.getElementById('csv-go').onclick=exportCSV;
 }
 function openCsvModal(){
-  const nView=Math.min(rangeN,times.length);
-  document.getElementById('csv-nview').textContent=`(${nView} แถว)`;
-  document.getElementById('csv-nall').textContent=`(${times.length} แถว)`;
+  const {T,n}=chartSrc(true), nView=Math.min(n,T.length);
+  document.getElementById('csv-nview').textContent=`(${nView} แถว)`+(dayMode?` · ${fmtDayTH(dayMode.date)}`:'');
+  document.getElementById('csv-nall').textContent=`(${T.length} แถว)`;
   document.getElementById('csv-err').textContent='';
   document.getElementById('csv-modal').style.display='flex';
 }
@@ -1063,15 +1158,16 @@ function exportCSV(){
   const cols=PARAMS.filter(p=>document.getElementById('exp-'+p.key)?.checked);
   if(!cols.length){ document.getElementById('csv-err').textContent='กรุณาเลือกอย่างน้อย 1 ค่า'; return; }
   const all=document.querySelector('input[name="csv-range"]:checked')?.value==='all';
-  const n=all?times.length:Math.min(rangeN,times.length), start=times.length-n;
-  let csv='เวลา,'+cols.map(p=>`${p.en}${p.unit?' ('+p.unit+')':''}`).join(',')+'\n';
-  for(let i=start;i<times.length;i++){
-    csv+=times[i]+','+cols.map(p=>{ const h=history[p.key], j=i-(times.length-h.length);   // history อาจสั้นกว่า times -> ชิดท้าย
+  const {H,T,n:nv}=chartSrc(true);
+  const n=all?T.length:Math.min(nv,T.length), start=T.length-n;
+  let csv=(dayMode?'วันที่,':'')+'เวลา,'+cols.map(p=>`${p.en}${p.unit?' ('+p.unit+')':''}`).join(',')+'\n';
+  for(let i=start;i<T.length;i++){
+    csv+=(dayMode?dayMode.date+',':'')+T[i]+','+cols.map(p=>{ const h=H[p.key], j=i-(T.length-h.length);   // ข้อมูลบางค่าอาจสั้นกว่าเวลา -> ชิดท้าย
       return (j>=0 && h[j]!=null) ? h[j] : ''; }).join(',')+'\n';
   }
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'}));
-  a.download='buoy-history.csv'; a.click();
+  a.download=dayMode?`buoy-${dayMode.date}.csv`:'buoy-history.csv'; a.click();
   closeCsvModal();
 }
 
@@ -1389,6 +1485,7 @@ async function initModes(){
 buildCards();
 buildExportPick();
 buildMapSwitch();
+buildDayPicker();
 initAuth();
 initSource();
 initModes();
