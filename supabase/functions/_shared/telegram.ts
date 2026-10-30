@@ -68,6 +68,12 @@ export function fmtStatus(r: Record<string, unknown> | null, modeKey: string): s
   m += `\n\n${dot(ev.overall)} ${ev.advice}`;
   for (const p of ev.params) m += `\n     ${STATUS_COLORS[p.status].emoji} ${p.label}: ${p.text}`;
 
+  // น้ำจืด/น้ำกร่อย: ความเค็ม/การนำไฟฟ้าไม่ได้ตัดสิน (เป็นเกณฑ์น้ำทะเล) — แสดงเป็นค่าอ้างอิง
+  if (ev.skipped.length) {
+    for (const s of ev.skipped) m += `\n     ⚪ ${s.label}: ${s.text} (อ้างอิง)`;
+    m += `\n     💧 ประเภทน้ำ: ${ev.waterLabel} — ไม่ใช้เกณฑ์ความเค็ม/การนำไฟฟ้าของน้ำทะเล`;
+  }
+
   if (n(r.lat) >= -90 && n(r.lat) <= 90 && !isNaN(n(r.lon)))
     m += `\n     📍 พิกัด: ${n(r.lat).toFixed(6)}, ${n(r.lon).toFixed(6)}`;
 
@@ -87,7 +93,9 @@ export function fmtActivity(r: Record<string, unknown> | null, modeKey: string):
     return m + tsLine(r);
   }
   m += `\n\n${dot(ev.overall)} ${ev.advice}`;
-  if (ev.labNote) m += `\n\nหมายเหตุ: ${ev.labNote}`;
+  if (ev.waterType && ev.waterType !== "sea")
+    m += `\n💧 ประเภทน้ำ: ${ev.waterLabel} (ประเมินจาก pH, DO, อุณหภูมิ, ความขุ่น)`;
+  if (ev.labNote) m +=`\n\nหมายเหตุ: ${ev.labNote}`;
   return m + tsLine(r);
 }
 

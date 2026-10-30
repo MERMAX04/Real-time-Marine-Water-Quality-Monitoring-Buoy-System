@@ -379,6 +379,7 @@
       <div class="swim-reasons" id="swim-reasons"></div>
       <div class="swim-note" id="swim-note">⚠️ ประเมินจากค่าที่ทุ่นวัดได้เท่านั้น</div>
     </div>
+    <span class="pill" id="swim-wtype" style="display:none"></span>
   </div>
 
   <!-- การ์ดค่า 7 ตัว -->
@@ -669,6 +670,7 @@ function forecast(key){
 }
 /* ประเมินว่าเข้าใกล้ขอบเขตอันตรายในอีกกี่รอบ (พยากรณ์เฉพาะตอนแนวโน้มชัดพอ) */
 function timeToRisk(p){
+  if (seaOnlySkipped(p.key)) return null;            // น้ำจืด/กร่อย -> ไม่พยากรณ์เทียบเกณฑ์ความเค็ม/EC ของน้ำทะเล
   const f = forecast(p.key); if (!f || Math.abs(f.slope) < 1e-4 || f.conf < 0.35) return null;
   const [lo,hi] = p.ideal;
   let target = null;
@@ -681,6 +683,7 @@ function timeToRisk(p){
 }
 /* ---------- วิเคราะห์: z-score ตรวจความผิดปกติ ---------- */
 function anomaly(key){
+  if (seaOnlySkipped(key)) return null;              // น้ำจืด/กร่อย: ความเค็ม/EC ใกล้ 0 -> z-score ไวต่อ noise เกินจริง
   const d = history[key]; if (d.length < 12) return null;
   const w = d.slice(-12, -1);
   const mean = w.reduce((a,b)=>a+b,0)/w.length;
@@ -714,6 +717,7 @@ function detectEvents(){
 function sensorIssues(){
   const out=[];
   PARAMS.forEach(p=>{
+    if(seaOnlySkipped(p.key)) return;                                       // น้ำจืด/กร่อย -> ช่วงกายภาพของน้ำทะเลใช้ไม่ได้
     const d=history[p.key]; if(d.length<8) return;
     const w=d.slice(-8), rng=p.range[1]-p.range[0], last=d.at(-1);
     if((Math.max(...w)-Math.min(...w)) < rng*0.0008)                       // 1) ค่านิ่งค้าง
@@ -740,6 +744,7 @@ function computeWQI(){
   let sum=0, wsum=0; const parts={};
   PARAMS.forEach(p=>{
     const v = history[p.key].at(-1); if (v==null) return;
+    if (seaOnlySkipped(p.key)) return;             // น้ำจืด/กร่อย -> ไม่นับความเค็ม/EC (แสดง "อ้างอิง")
     const si = subIndex(p,v); parts[p.key]=si; sum+=si*p.w; wsum+=p.w;
   });
   const wqi = wsum? Math.round(sum/wsum) : 0;
@@ -760,7 +765,7 @@ function reconcileWQI(wqiObj){
   if(!MODE_CFG) return;
   const d={}; PARAMS.forEach(p=>{ const a=history[p.key]; if(a.length) d[p.key]=a.at(-1); });
   const s=evalWaterJS(d);
-  if(s.overall==='unknown'){ wqiObj.unknown=true; wqiObj.cat='ประเมินไม่ได้'; wqiObj.cls='nodata'; return; }  // sal<1 / sensor เสีย -> WQI ไม่มีความหมาย
+  if(s.overall==='unknown'){ wqiObj.unknown=true; wqiObj.cat='ประเมินไม่ได้'; wqiObj.cls='nodata'; return; }  // เฟรมเสีย / sensor อ่านไม่ได้ -> WQI ไม่มีความหมาย
   let ceil=100;
   if(s.overall==='red') ceil=39;         // อันตราย -> ไม่เกิน "แย่"
   else if(s.overall==='orange') ceil=59; // เฝ้าระวัง -> ไม่เกิน "ปานกลาง"
@@ -773,7 +778,7 @@ function reconcileWQI(wqiObj){
 /* ---------- วิเคราะห์: สร้างประโยคสรุปภาษาไทย ---------- */
 function buildInsight(wqiObj){
   if(wqiObj.unknown)
-    return `ยัง<b>ประเมินไม่ได้</b> — ค่าความเค็มต่ำผิดปกติ (ทุ่นอาจไม่ได้อยู่ในน้ำทะเล หรือเซนเซอร์อ่านไม่ได้/เฟรมข้อมูลเสีย) ตรวจการต่อเซนเซอร์และการจ่ายไฟของทุ่น`;
+    return `ยัง<b>ประเมินไม่ได้</b> — เซนเซอร์อ่านค่าไม่ได้หรือเฟรมข้อมูลเสีย (pH และอุณหภูมิเป็น 0/ว่าง) ตรวจการต่อเซนเซอร์และการจ่ายไฟของทุ่น`;
   const worst = PARAMS.map(p=>({p,si:wqiObj.parts[p.key]??100})).sort((a,b)=>a.si-b.si)[0];
   const risks = PARAMS.map(p=>({p,r:timeToRisk(p)})).filter(x=>x.r);
   const events = detectEvents();
@@ -791,6 +796,9 @@ function buildInsight(wqiObj){
   } else if (worst.si >= 75){
     msg += `ไม่พบแนวโน้มผิดปกติในระยะสั้น.`;
   }
+  const wt=curWaterType();
+  if (wt==='fresh'||wt==='brackish')                 // ไม่ใช่น้ำทะเล -> บอกว่าประเมินจากค่าใดบ้าง
+    msg += ` 💧 ประเภทน้ำ: <b>${wtCfg().labels[wt]}</b> (ความเค็ม ${fmtVal({unit:'ppt'},+history.sal.at(-1))} ppt) — ประเมินจาก pH/DO/อุณหภูมิ/ความขุ่น ไม่ใช้เกณฑ์ความเค็ม/การนำไฟฟ้าของน้ำทะเล`;
   return msg;
 }
 
@@ -1293,9 +1301,29 @@ const DEC_M={ph:2,do_val:2,do_pct:0,temp:1,sal:1,cond:1,turb:1};
 function inBandJS(v,band){ const lo=band[0],hi=band[1]; if(lo!=null&&v<lo)return false; if(hi!=null&&v>hi)return false; return true; }
 function bandStatusJS(v,g,o){ if(inBandJS(v,g))return'green'; if(inBandJS(v,o))return'orange'; return'red'; }
 
+/* ประเภทน้ำ (แยกอัตโนมัติจากความเค็มล่าสุด) — ค่าจาก water-modes.json.waterType (มีค่าเริ่มต้นกันไฟล์รุ่นเก่า)
+   ไม่ใช่น้ำทะเล (จืด/กร่อย) -> ไม่นำค่าใน seaOnly (ความเค็ม/การนำไฟฟ้า) มาตัดสิน ; น้ำทะเล -> เหมือนเดิมทุกอย่าง */
+const WT_DEF={freshMaxSal:0.5,seaMinSal:26,seaOnly:['sal','cond'],labels:{fresh:'น้ำจืด',brackish:'น้ำกร่อย',sea:'น้ำทะเล'}};
+function wtCfg(){ const w=(MODE_CFG&&MODE_CFG.waterType)||{}; return {...WT_DEF,...w,labels:{...WT_DEF.labels,...(w.labels||{})}}; }
+function waterTypeOf(sal){
+  if(sal==null||isNaN(sal)) return null;            // ไม่มีค่าความเค็ม -> ประเมินแบบเดิม
+  const w=wtCfg(); return sal<w.freshMaxSal?'fresh':sal<w.seaMinSal?'brackish':'sea';
+}
+const deadVal=v=>v==null||isNaN(v)||+v===0;          // กันเฟรมเสีย: pH และอุณหภูมิเป็น 0/ว่างพร้อมกัน = เซนเซอร์อ่านไม่ได้
+function curWaterType(){                              // เฟรมล่าสุดเสีย -> ความเค็มเชื่อไม่ได้ -> null (ประเมินแบบเดิม)
+  const L=k=>{ const a=history[k]; return a&&a.length?a.at(-1):null; };
+  if(deadVal(L('ph')) && deadVal(L('temp'))) return null;
+  return waterTypeOf(L('sal'));
+}
+function seaOnlySkipped(key,wt=curWaterType()){
+  const so=wtCfg().seaOnly||[];
+  return (wt==='fresh'||wt==='brackish') && (so.includes(cfgKey(key))||so.includes(dashKey(key)));
+}
+
 /* สถานะสีของค่าเดียว ตามเกณฑ์โหมดปัจจุบัน (null = ค่านี้ไม่อยู่ในเกณฑ์ตัดสินของโหมด) */
 function paramStatusMode(k,v){
   if(!MODE_CFG||v==null||isNaN(v)) return null;
+  if(seaOnlySkipped(k)) return null;                  // น้ำจืด/กร่อย -> ความเค็ม/EC เป็น "อ้างอิง"
   const c=MODE_CFG.modes[CUR_MODE].criteria[cfgKey(k)];
   if(!c) return null;
   let val=v; if(cfgKey(k)==='do_pct'&&val<=2)val*=100;
@@ -1305,15 +1333,17 @@ function paramStatusMode(k,v){
 /* ประเมินสถานะรวมตามโหมด (มิเรอร์ water-eval.ts) */
 function evalWaterJS(d){
   const cfg=MODE_CFG.modes[CUR_MODE], crit=cfg.criteria, META=MODE_CFG.params;
-  if(d.sal!=null && d.sal<1)
-    return {overall:'unknown',title:cfg.title,head:'ยังประเมินไม่ได้',advice:'ความเค็มต่ำมาก — ทุ่นอาจไม่ได้อยู่ในน้ำทะเล',reasons:[],labNote:cfg.labNote};
-  let anyCritRed=false,anyRed=false,anyOrange=false; const redR=[],watchR=[];
+  if(deadVal(d.ph) && deadVal(d.temp))               // ตรวจเฟรมเสียก่อน (ก่อนแยกประเภทน้ำจากความเค็ม)
+    return {overall:'unknown',title:cfg.title,head:'ยังประเมินไม่ได้',advice:'ยังประเมินไม่ได้ — เซนเซอร์อ่านค่าไม่ได้หรือเฟรมข้อมูลเสีย',reasons:[],labNote:cfg.labNote,waterType:null,waterLabel:'',skipped:[]};   // เฟรมเสีย -> ความเค็มเชื่อไม่ได้ ไม่ระบุประเภทน้ำ
+  const waterType=waterTypeOf(d.sal), waterLabel=waterType?wtCfg().labels[waterType]:'';
+  let anyCritRed=false,anyRed=false,anyOrange=false; const redR=[],watchR=[],skipped=[];
   const keys=Object.keys(crit).sort((a,b)=>(META[a].order||99)-(META[b].order||99));
   for(const ck of keys){
     let v=d[dashKey(ck)]; if(v==null||isNaN(v))continue;
     if(ck==='do_pct'&&v<=2)v*=100;
-    const c=crit[ck], st=bandStatusJS(v,c.green,c.orange);
     const text=`${(+v).toFixed(DEC_M[ck]??1)}${META[ck].unit?' '+META[ck].unit:''}`;
+    if(seaOnlySkipped(ck,waterType)){ skipped.push({key:ck,label:META[ck].label,text:`${fmtVal(META[ck],+v)}${META[ck].unit?' '+META[ck].unit:''}`}); continue; }   // จืด/กร่อย -> ไม่ใช้เกณฑ์น้ำทะเล
+    const c=crit[ck], st=bandStatusJS(v,c.green,c.orange);
     if(st==='red'){ anyRed=true; if(c.tier==='critical')anyCritRed=true; redR.push(`${META[ck].label} ${text}`); }
     else if(st==='orange'){ anyOrange=true; watchR.push(`${META[ck].label} ${text}`); }
   }
@@ -1322,7 +1352,7 @@ function evalWaterJS(d){
   else if(anyRed||anyOrange){overall='orange';reasons=redR.concat(watchR);}
   else{overall='green';reasons=[];}
   const head=(cfg.advice[overall].split('{reasons}')[0]||'').replace(/[—-]\s*$/,'').trim();
-  return {overall,title:cfg.title,head,advice:cfg.advice[overall].replace('{reasons}',reasons.join(', ')),reasons,labNote:cfg.labNote};
+  return {overall,title:cfg.title,head,advice:cfg.advice[overall].replace('{reasons}',reasons.join(', ')),reasons,labNote:cfg.labNote,waterType,waterLabel,skipped};
 }
 
 function renderSwim(){
@@ -1335,6 +1365,9 @@ function renderSwim(){
   document.getElementById('swim-label').textContent=`${s.title} — ${s.head}`;
   document.getElementById('swim-reasons').innerHTML =
     s.reasons.length ? '• '+s.reasons.join('<br>• ') : (s.overall==='green'?'ทุกค่าที่วัดได้อยู่ในเกณฑ์ของโหมดนี้':'');
+  const wt=document.getElementById('swim-wtype'), show=s.waterType==='fresh'||s.waterType==='brackish';   // ชิปประเภทน้ำ (เฉพาะไม่ใช่ทะเล)
+  if(wt){ wt.style.display=show?'inline-flex':'none';
+    if(show){ wt.textContent=`💧 ${s.waterLabel}`; wt.title=`ความเค็ม ${fmtVal({unit:'ppt'},+d.sal)} ppt — ไม่ใช้เกณฑ์ความเค็ม/การนำไฟฟ้าของน้ำทะเล`; } }
 }
 
 async function tick(){
@@ -1364,7 +1397,7 @@ async function tick(){
   renderSwim();                       // ธงสถานะการลงเล่นน้ำ (Blue Flag)
   const wqiObj=computeWQI();
   reconcileWQI(wqiObj);               // จำกัดเพดานดัชนีตามสถานะรวมของโหมด (กันดัชนีขัดแย้งกับการแจ้งเตือน)
-  const wqiShow = wqiObj.unknown ? '—' : wqiObj.wqi;   // ประเมินไม่ได้ (sal<1/sensor เสีย) -> ไม่โชว์เลขวิกฤตหลอก
+  const wqiShow = wqiObj.unknown ? '—' : wqiObj.wqi;   // ประเมินไม่ได้ (เฟรมเสีย/sensor อ่านไม่ได้) -> ไม่โชว์เลขวิกฤตหลอก
   drawGauge(wqiObj.unknown?0:wqiObj.wqi, wqiObj.cls);
   document.getElementById('wqi-num').textContent=wqiShow;
   document.getElementById('wqi-mini').textContent=wqiShow;
@@ -1442,20 +1475,20 @@ async function doLogin(){
     if(j.ok&&j.token){
       adminToken=j.token; try{sessionStorage.setItem('buoy_admin_token',j.token);}catch(e){}
       document.getElementById('login-pass').value=''; closeLogin(); applyRole();
-      history.replaceState(null,'','/');                            // เคลียร์ /admin ออกจาก URL
+      window.history.replaceState(null,'','/');                            // เคลียร์ /admin ออกจาก URL
     } else { err.textContent='ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง'; }
   }catch(e){ err.textContent='เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ ลองใหม่'; }
 }
 function initAuth(){
   applyRole();
   document.getElementById('login-submit').onclick=doLogin;
-  document.getElementById('login-cancel').onclick=()=>{ closeLogin(); history.replaceState(null,'','/'); };   // ยกเลิก -> หน้า user
-  const out=document.getElementById('logout-btn'); if(out) out.onclick=()=>{ logoutAdmin(); history.replaceState(null,'','/'); };
+  document.getElementById('login-cancel').onclick=()=>{ closeLogin(); window.history.replaceState(null,'','/'); };   // ยกเลิก -> หน้า user
+  const out=document.getElementById('logout-btn'); if(out) out.onclick=()=>{ logoutAdmin(); window.history.replaceState(null,'','/'); };
   document.getElementById('login-pass').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
   document.getElementById('login-user').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('login-pass').focus(); });
   const onAdmin = location.pathname.replace(/\/+$/,'').endsWith('/admin');
   if(onAdmin){
-    if(isAdmin()) history.replaceState(null,'','/');    // ล็อกอินอยู่แล้ว -> ไปหน้าหลัก (ไม่เปิด modal ซ้ำ)
+    if(isAdmin()) window.history.replaceState(null,'','/');    // ล็อกอินอยู่แล้ว -> ไปหน้าหลัก (ไม่เปิด modal ซ้ำ)
     else openLogin();                                    // ยังไม่ล็อกอิน -> เปิด modal
   }
 }

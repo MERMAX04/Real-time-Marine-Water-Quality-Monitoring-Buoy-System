@@ -101,6 +101,16 @@ function wm_band_status($v, $green, $orange) {
 }
 
 
+// แยกประเภทน้ำจากความเค็ม (ppt) — null/ว่าง -> null  (มิเรอร์ waterTypeOf ใน water-eval.ts)
+function wm_water_type($sal) {
+    if ($sal === null || $sal === '' || !is_numeric($sal)) return null;
+    $wt = wm_config()['waterType'] ?? [];
+    $sal = (float)$sal;
+    if ($sal < ($wt['freshMaxSal'] ?? 0.5)) return 'fresh';
+    if ($sal < ($wt['seaMinSal'] ?? 26))    return 'brackish';
+    return 'sea';
+}
+
 function wm_dot($s) {
     $map = ['green' => '🟢', 'orange' => '🟠', 'red' => '🔴', 'unknown' => '⚪'];
     return $map[$s] ?? '⚪';
@@ -132,29 +142,43 @@ function wm_eval($r, $modeKey) {
     $DEC  = ['ph'=>2,'do_val'=>2,'do_pct'=>0,'temp'=>1,'sal'=>1,'cond'=>1,'turb'=>1];
     $g = function ($k) use ($r) { return isset($r[$k]) && $r[$k] !== null && $r[$k] !== '' ? (float)$r[$k] : null; };
 
-    // ทุ่นไม่ได้อยู่ในน้ำทะเล (ความเค็มต่ำมาก) -> ไม่ประเมิน
-    $sal = $g('sal');
-    if ($sal !== null && $sal < 1) {
+    // เฟรมเสีย / เซนเซอร์อ่านไม่ได้ (pH และอุณหภูมิเป็น 0/ว่าง พร้อมกัน) -> ไม่ประเมิน (กันแดงหลอกจาก pH = 0)
+    //   ค่าความเค็มในเฟรมเสียเชื่อไม่ได้ จึงไม่ระบุประเภทน้ำ (waterType = null)
+    $dead = function ($v) { return $v === null || $v == 0; };
+    if ($dead($g('ph')) && $dead($g('temp'))) {
         return ['mode'=>$mode,'name'=>$m['name'],'title'=>$m['title'],'overall'=>'unknown',
-                'advice'=>'ยังประเมินไม่ได้ — ความเค็มต่ำมาก ทุ่นอาจไม่ได้อยู่ในน้ำทะเล',
-                'labNote'=>$m['labNote'] ?? '','params'=>[],'reasons'=>[]];
+                'advice'=>'ยังประเมินไม่ได้ — เซนเซอร์อ่านค่าไม่ได้หรือเฟรมข้อมูลเสีย',
+                'labNote'=>$m['labNote'] ?? '','params'=>[],'reasons'=>[],
+                'waterType'=>null,'waterLabel'=>'','skipped'=>[]];
     }
+
+    // ประเภทน้ำ (จากความเค็ม) — ไม่ใช่น้ำทะเล -> ค่าใน seaOnly ไม่นำมาตัดสิน (แสดงเป็นค่าอ้างอิงแทน)
+    $waterType  = wm_water_type($g('sal'));
+    $waterLabel = $waterType ? ($cfg['waterType']['labels'][$waterType] ?? '') : '';
+    $skipSea    = ($waterType === 'fresh' || $waterType === 'brackish');
+    $seaOnly    = $cfg['waterType']['seaOnly'] ?? [];
 
     // เรียงตาม order
     $keys = array_keys($crit);
     usort($keys, function ($a, $b) use ($META) { return ($META[$a]['order'] ?? 99) - ($META[$b]['order'] ?? 99); });
 
     $anyCritRed = false; $anyRed = false; $anyOrange = false;
-    $redR = []; $watchR = []; $params = [];
+    $redR = []; $watchR = []; $params = []; $skipped = [];
     foreach ($keys as $k) {
         $v = $g($k);
         if ($v === null) continue;
         if ($k === 'do_pct' && $v <= 2) $v *= 100;   // บางเซนเซอร์ส่งเป็นสัดส่วน (0.9 = 90%)
         $c = $crit[$k];
-        $st = wm_band_status($v, $c['green'], $c['orange']);
         $unit = $META[$k]['unit'] ?? '';
         $text = number_format($v, $DEC[$k] ?? 1) . ($unit ? ' ' . $unit : '');
-        $params[] = ['key'=>$k,'label'=>$META[$k]['label'],'text'=>$text,'status'=>$st,'tier'=>$c['tier']];
+        if ($skipSea && in_array($k, $seaOnly, true)) {
+            // ค่าน้อยในน้ำจืด (เช่น 0.07 ppt) ปัด 1 ตำแหน่งจะกลายเป็น 0.1 -> ใช้ 2 ตำแหน่งเมื่อ < 1
+            $t2 = abs($v) < 1 ? number_format($v, 2) . ($unit ? ' ' . $unit : '') : $text;
+            $skipped[] = ['key'=>$k,'label'=>$META[$k]['label'],'unit'=>$unit,'value'=>$v,'text'=>$t2];
+            continue;
+        }
+        $st = wm_band_status($v, $c['green'], $c['orange']);
+        $params[] =['key'=>$k,'label'=>$META[$k]['label'],'text'=>$text,'status'=>$st,'tier'=>$c['tier']];
         if ($st === 'red') {
             $anyRed = true;
             if ($c['tier'] === 'critical') $anyCritRed = true;
@@ -171,7 +195,8 @@ function wm_eval($r, $modeKey) {
 
     $advice = str_replace('{reasons}', implode(', ', $reasons), $m['advice'][$overall]);
     return ['mode'=>$mode,'name'=>$m['name'],'title'=>$m['title'],'overall'=>$overall,
-            'advice'=>$advice,'labNote'=>$m['labNote'] ?? '','params'=>$params,'reasons'=>$reasons];
+            'advice'=>$advice,'labNote'=>$m['labNote'] ?? '','params'=>$params,'reasons'=>$reasons,
+            'waterType'=>$waterType,'waterLabel'=>$waterLabel,'skipped'=>$skipped];
 }
 
 // รายการโหมด (สำหรับ /mode)
@@ -225,6 +250,12 @@ function tg_fmt_status($r) {
     $m .= "\n\n" . wm_dot($ev['overall']) . " " . $ev['advice'];
     foreach ($ev['params'] as $p) $m .= "\n     " . wm_dot($p['status']) . " " . $p['label'] . ": " . $p['text'];
 
+    // น้ำจืด/น้ำกร่อย: ความเค็ม/การนำไฟฟ้าไม่ได้ตัดสิน (เป็นเกณฑ์น้ำทะเล) — แสดงเป็นค่าอ้างอิง
+    if (!empty($ev['skipped'])) {
+        foreach ($ev['skipped'] as $s) $m .= "\n     ⚪ " . $s['label'] . ": " . $s['text'] . " (อ้างอิง)";
+        $m .= "\n     💧 ประเภทน้ำ: " . $ev['waterLabel'] . " — ไม่ใช้เกณฑ์ความเค็ม/การนำไฟฟ้าของน้ำทะเล";
+    }
+
     $f = function ($v, $d = 2) { return ($v === null || $v === '') ? '–' : number_format((float)$v, $d); };
     if (($r['lat'] ?? null) !== null && ($r['lon'] ?? null) !== null)
         $m .= "\n     📍 พิกัด: " . $f($r['lat'], 6) . ", " . $f($r['lon'], 6);
@@ -247,6 +278,8 @@ function tg_fmt_activity($r) {
         return $m;
     }
     $m .= "\n\n" . wm_dot($ev['overall']) . " " . $ev['advice'];
+    if (!empty($ev['waterType']) && $ev['waterType'] !== 'sea')
+        $m .= "\n💧 ประเภทน้ำ: " . $ev['waterLabel'] . " (ประเมินจาก pH, DO, อุณหภูมิ, ความขุ่น)";
     if ($ev['labNote']) $m .= "\n\nหมายเหตุ: " . $ev['labNote'];
     if ($r['ts'] ?? null) $m .= "\n🕒 " . $r['ts'];
     return $m;

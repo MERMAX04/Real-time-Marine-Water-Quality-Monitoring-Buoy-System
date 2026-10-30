@@ -14,6 +14,12 @@ export const PARAMS_META = modesConfig.params as Record<string, { label: string;
 export const STATUS_COLORS = modesConfig.statusColors as Record<Status, { emoji: string; label: string }>;
 export const DEFAULT_MODE = modesConfig.defaultMode as string;
 
+// ประเภทน้ำ (แยกจากความเค็ม) — ถ้าไม่ใช่น้ำทะเล จะไม่ตัดสินค่าใน seaOnly (เกณฑ์ของน้ำทะเล)
+export type WaterType = "fresh" | "brackish" | "sea";
+export const WATER_TYPE = modesConfig.waterType as {
+  freshMaxSal: number; seaMinSal: number; seaOnly: string[]; labels: Record<WaterType, string>;
+};
+
 // ทศนิยมที่ใช้แสดงต่อค่า
 const DEC: Record<string, number> = { ph: 2, do_val: 2, do_pct: 0, temp: 1, sal: 1, cond: 1, turb: 1 };
 
@@ -49,7 +55,21 @@ export type WaterEval = {
   labNote: string;
   params: ParamEval[];              // เรียงตาม order
   reasons: string[];                // ค่าที่ทำให้ตกเกณฑ์ (สำหรับ overall != green)
+  waterType: WaterType | null;      // null = ไม่มีค่าความเค็ม (ประเมินทุกค่าที่มี)
+  waterLabel: string;               // "น้ำจืด" / "น้ำกร่อย" / "น้ำทะเล" ("" เมื่อ null)
+  skipped: SkippedParam[];          // ค่าใน seaOnly ที่ไม่ได้ตัดสิน (น้ำจืด/น้ำกร่อย) — แสดงเป็น "อ้างอิง"
 };
+
+export type SkippedParam = { key: string; label: string; unit: string; value: number; text: string };
+
+// แยกประเภทน้ำจากความเค็ม (ppt) — NaN/ว่าง -> null
+export function waterTypeOf(sal: unknown): WaterType | null {
+  const s = num(sal);
+  if (isNaN(s)) return null;
+  if (s < WATER_TYPE.freshMaxSal) return "fresh";
+  if (s < WATER_TYPE.seaMinSal) return "brackish";
+  return "sea";
+}
 
 // ประเมิน 1 แถวข้อมูล ตามโหมดที่เลือก
 export function evalWater(r: Record<string, unknown>, modeKey: string): WaterEval {
@@ -57,17 +77,26 @@ export function evalWater(r: Record<string, unknown>, modeKey: string): WaterEva
   const cfg = MODES[mode];
   const crit = cfg.criteria as Record<string, { green: Band; orange: Band; tier: Tier }>;
 
-  // ทุ่นไม่ได้อยู่ในน้ำทะเล (ความเค็มต่ำมาก) -> ไม่ประเมิน
-  const salRaw = num(r.sal);
-  if (!isNaN(salRaw) && salRaw < 1) {
+  // เฟรมเสีย / เซนเซอร์อ่านไม่ได้ (pH และอุณหภูมิเป็น 0/ว่าง พร้อมกัน) -> ไม่ประเมิน (กันแดงหลอกจาก pH = 0)
+  //   ค่าความเค็มในเฟรมเสียเชื่อไม่ได้ จึงไม่ระบุประเภทน้ำ (waterType = null)
+  const dead = (v: number) => isNaN(v) || v === 0;
+  if (dead(num(r.ph)) && dead(num(r.temp))) {
     return {
       mode, modeName: cfg.name, title: cfg.title, overall: "unknown",
-      advice: "ยังประเมินไม่ได้ — ความเค็มต่ำมาก ทุ่นอาจไม่ได้อยู่ในน้ำทะเล",
+      advice: "ยังประเมินไม่ได้ — เซนเซอร์อ่านค่าไม่ได้หรือเฟรมข้อมูลเสีย",
       labNote: cfg.labNote ?? "", params: [], reasons: [],
+      waterType: null, waterLabel: "", skipped: [],
     };
   }
 
+  // ประเภทน้ำ (จากความเค็ม)
+  const waterType = waterTypeOf(r.sal);
+  const waterLabel = waterType ? WATER_TYPE.labels[waterType] : "";
+
+  // ไม่ใช่น้ำทะเล -> ค่าใน seaOnly ไม่นำมาตัดสิน (แสดงเป็นค่าอ้างอิงแทน)
+  const skipSea = waterType === "fresh" || waterType === "brackish";
   const params: ParamEval[] = [];
+  const skipped: SkippedParam[] = [];
   let anyCriticalRed = false, anyRed = false, anyOrange = false;
   const redReasons: string[] = [], watchReasons: string[] = [];
 
@@ -80,11 +109,18 @@ export function evalWater(r: Record<string, unknown>, modeKey: string): WaterEva
     if (k === "do_pct" && v <= 2) v = v * 100;      // บางเซนเซอร์ส่งเป็นสัดส่วน (0.9 = 90%)
 
     const c = crit[k];
-    const st = bandStatus(v, c.green, c.orange);
     const meta = PARAMS_META[k] ?? { label: k, unit: "", order: 99 };
     const dec = DEC[k] ?? 1;
     const text = `${v.toFixed(dec)}${meta.unit ? " " + meta.unit : ""}`;
 
+    if (skipSea && WATER_TYPE.seaOnly.includes(k)) {
+      // ค่าน้อยในน้ำจืด (เช่น 0.07 ppt) ปัด 1 ตำแหน่งจะกลายเป็น 0.1 -> ใช้ 2 ตำแหน่งเมื่อ < 1
+      const t2 = Math.abs(v) < 1 ? `${v.toFixed(2)}${meta.unit ? " " + meta.unit : ""}` : text;
+      skipped.push({ key: k, label: meta.label, unit: meta.unit, value: v, text: t2 });
+      continue;
+    }
+
+    const st = bandStatus(v, c.green, c.orange);
     params.push({ key: k, label: meta.label, unit: meta.unit, value: v, text, status: st, tier: c.tier });
 
     if (st === "red") {
@@ -106,7 +142,10 @@ export function evalWater(r: Record<string, unknown>, modeKey: string): WaterEva
   const tmpl = cfg.advice[overall] as string;
   const advice = tmpl.replace("{reasons}", reasons.join(", "));
 
-  return { mode, modeName: cfg.name, title: cfg.title, overall, advice, labNote: cfg.labNote ?? "", params, reasons };
+  return {
+    mode, modeName: cfg.name, title: cfg.title, overall, advice, labNote: cfg.labNote ?? "", params, reasons,
+    waterType, waterLabel, skipped,
+  };
 }
 
 // อ่านโหมดปัจจุบันจากตาราง app_settings (คืน default ถ้าไม่มี)

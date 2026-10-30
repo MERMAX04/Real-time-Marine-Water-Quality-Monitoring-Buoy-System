@@ -20,6 +20,14 @@
     "turb":   { "label": "ความขุ่น",              "unit": "NTU",   "order": 7 }
   },
 
+  "waterType": {
+    "_about": "แยกประเภทน้ำจากความเค็ม (ppt): < freshMaxSal = น้ำจืด, < seaMinSal = น้ำกร่อย, อื่นๆ = น้ำทะเล. ถ้าไม่ใช่น้ำทะเล จะไม่นำค่าใน seaOnly มาตัดสิน (เกณฑ์ของน้ำทะเล)",
+    "freshMaxSal": 0.5,
+    "seaMinSal": 26,
+    "seaOnly": ["sal", "cond"],
+    "labels": { "fresh": "น้ำจืด", "brackish": "น้ำกร่อย", "sea": "น้ำทะเล" }
+  },
+
   "_bandFormat": "green/orange = [min, max] (null = ไม่จำกัดด้านนั้น). ค่าอยู่ในช่วง green→เขียว, ไม่เขียวแต่อยู่ในช่วง orange→ส้ม, นอกช่วง orange→แดง. tier: critical = แดง→สถานะรวมแดง, advisory = แดง→สถานะรวมส้ม",
 
   "modes": {
