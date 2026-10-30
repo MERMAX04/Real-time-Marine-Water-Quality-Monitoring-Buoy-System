@@ -379,6 +379,7 @@
       <div class="swim-reasons" id="swim-reasons"></div>
       <div class="swim-note" id="swim-note">⚠️ ประเมินจากค่าที่ทุ่นวัดได้เท่านั้น</div>
     </div>
+    <span class="pill" id="swim-wtype" style="display:none"></span>
   </div>
 
   <!-- การ์ดค่า 7 ตัว -->
@@ -1364,6 +1365,11 @@ function renderSwim(){
   document.getElementById('swim-label').textContent=`${s.title} — ${s.head}`;
   document.getElementById('swim-reasons').innerHTML =
     s.reasons.length ? '• '+s.reasons.join('<br>• ') : (s.overall==='green'?'ทุกค่าที่วัดได้อยู่ในเกณฑ์ของโหมดนี้':'');
+  // ชิปประเภทน้ำ (ตรวจจากความเค็มอัตโนมัติ) — ซ่อนเมื่อไม่ทราบ (ไม่มีค่าความเค็ม/เฟรมเสีย)
+  const wt=document.getElementById('swim-wtype');
+  if(wt){ wt.style.display=s.waterType?'inline-flex':'none';
+    if(s.waterType){ wt.textContent=`${s.waterType==='sea'?'🌊':'💧'} ${s.waterLabel}`;
+      wt.title=`ความเค็ม ${fmtVal({unit:'ppt'},+d.sal)} ppt`+(s.waterType==='sea'?'':' — ไม่ใช้เกณฑ์ความเค็ม/การนำไฟฟ้าของน้ำทะเล'); } }
 }
 
 async function tick(){
